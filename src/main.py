@@ -3,8 +3,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 from colorama import Fore, Back, Style, init
 import questionary
-import os
-from supabase import create_client, Client
+
 from agents.fundamentals import fundamentals_agent
 from agents.portfolio_manager import portfolio_management_agent
 from agents.technicals import technical_analyst_agent
@@ -16,7 +15,6 @@ from agents.valuation import valuation_agent
 from utils.display import print_trading_output
 from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
-from db.functions import store_backtest_record, store_analyst_signals
 
 import argparse
 from datetime import datetime
@@ -25,17 +23,6 @@ from tabulate import tabulate
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Retrieve Supabase URL and Key from environment variables
-url = os.getenv("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
-key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
-
-if not url or not key:
-    raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
-
-# Initialize Supabase client
-supabase: Client = create_client(url, key)
-supabase.postgrest.auth(token=key)
 
 init(autoreset=True)
 
@@ -58,60 +45,46 @@ def run_hedge_fund(
     portfolio: dict,
     show_reasoning: bool = False,
     selected_analysts: list = None,
-    supabase=None
 ):
+    # Start progress tracking
     progress.start()
+
     try:
+        # Create a new workflow if analysts are customized
         if selected_analysts is not None:
             workflow = create_workflow(selected_analysts)
             agent = workflow.compile()
         else:
             agent = app
 
-        final_state = agent.invoke({
-            "messages": [HumanMessage(content="Make trading decisions based on the provided data.")],
-            "data": {
-                "tickers": tickers,
-                "portfolio": portfolio,
-                "start_date": start_date,
-                "end_date": end_date,
-                "analyst_signals": {},
+        final_state = agent.invoke(
+            {
+                "messages": [
+                    HumanMessage(
+                        content="Make trading decisions based on the provided data.",
+                    )
+                ],
+                "data": {
+                    "tickers": tickers,
+                    "portfolio": portfolio,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "analyst_signals": {},
+                },
+                "metadata": {
+                    "show_reasoning": show_reasoning,
+                },
             },
-            "metadata": {"show_reasoning": show_reasoning},
-        })
-
-        decisions = parse_hedge_fund_response(final_state["messages"][-1].content)
-        analyst_signals = final_state["data"]["analyst_signals"]
-
-        # Store data if supabase client is provided
-        if supabase:
-            for ticker in tickers:
-                store_analyst_signals(supabase, end_date, ticker, analyst_signals)
-                if ticker in decisions:
-                    record = {
-                        'date': end_date,
-                        'ticker': ticker,
-                        'action': decisions[ticker].get('action', 'hold'),
-                        'quantity': decisions[ticker].get('quantity', 0),
-                        'price': portfolio.get('last_price', {}).get(ticker, 0),
-                        'shares_owned': portfolio['positions'].get(ticker, 0),
-                        'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
-                        'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
-                        'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
-                        'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
-                        'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
-                        'return_pct': 0,  # Calculate if needed
-                        'cash_balance': portfolio['cash'],
-                        'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
-                    }
-                    store_backtest_record(supabase, record)
+        )
 
         return {
-            "decisions": decisions,
-            "analyst_signals": analyst_signals,
+            "decisions": parse_hedge_fund_response(final_state["messages"][-1].content),
+            "analyst_signals": final_state["data"]["analyst_signals"],
         }
     finally:
+        # Stop progress tracking
         progress.stop()
+
 
 def start(state: AgentState):
     """Initialize the workflow with the input message."""
@@ -243,6 +216,5 @@ if __name__ == "__main__":
         portfolio=portfolio,
         show_reasoning=args.show_reasoning,
         selected_analysts=selected_analysts,
-        supabase=supabase
     )
     print_trading_output(result)
