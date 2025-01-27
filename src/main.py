@@ -30,6 +30,9 @@ load_dotenv()
 url = os.getenv("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
 
+print(f"Supabase URL: {url}")
+print(f"Supabase Key: {key}")
+
 if not url or not key:
     raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
 

@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
 
+      - name: Debug Environment Variables
+        run: |
+          echo "SUPABASE_URL: ${{ secrets.SUPABASE_URL }}"
+          echo "SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}"
+          
       - name: Run Trading Bot
         run: echo -e "a\n" | poetry run python src/main.py --ticker AAPL
         env:
