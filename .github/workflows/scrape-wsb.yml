@@ -33,7 +33,9 @@ jobs:
         run: poetry install --no-interaction --no-root
           
       - name: Run scraper
-        run: poetry run python src/reddit/getDailyDiscussion.py  
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          poetry run python src/reddit/getDailyDiscussion.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FINANCIAL_DATASETS_API_KEY: ${{ secrets.FINANCIAL_DATASETS_API_KEY }}
