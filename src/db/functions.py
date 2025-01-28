@@ -1,5 +1,26 @@
+from asyncio.log import logger
 from datetime import datetime
 import random
+
+
+def store_stock_record(supabase, ticker, name):
+    """Store a stock in the database"""
+    # check that name and ticker are both strings
+    if not isinstance(ticker, str) or not isinstance(name, str):
+        logger.error(f"Invalid ticker or name: {ticker}, {name}")
+        return
+
+    record = {
+        'ticker': ticker,
+        'name': name,
+        'created_at': datetime.now().isoformat(),
+        'updated_at': datetime.now().isoformat(),
+        'last_mentioned': datetime.now().isoformat()
+    }
+    try:
+        supabase.table('stocks').upsert(record).execute()
+    except Exception as e:
+        logger.error(f"Error storing stock: {e}")
 
 def store_backtest_record(supabase, record):
     """Store a single backtest record"""

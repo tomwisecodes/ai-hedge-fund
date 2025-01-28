@@ -17,6 +17,7 @@ from utils.display import print_trading_output
 from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
 from db.functions import store_backtest_record, store_analyst_signals
+from traders.alpaca_cfd import execute_trades
 
 import argparse
 from datetime import datetime
@@ -29,9 +30,6 @@ load_dotenv()
 # Retrieve Supabase URL and Key from environment variables
 url = os.getenv("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
-
-print(f"Supabase URL: {url}")
-print(f"Supabase Key: {key}")
 
 if not url or not key:
     raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
@@ -87,28 +85,28 @@ def run_hedge_fund(
         decisions = parse_hedge_fund_response(final_state["messages"][-1].content)
         analyst_signals = final_state["data"]["analyst_signals"]
 
-        # Store data if supabase client is provided
-        if supabase:
-            for ticker in tickers:
-                store_analyst_signals(supabase, end_date, ticker, analyst_signals)
-                if ticker in decisions:
-                    record = {
-                        'date': end_date,
-                        'ticker': ticker,
-                        'action': decisions[ticker].get('action', 'hold'),
-                        'quantity': decisions[ticker].get('quantity', 0),
-                        'price': portfolio.get('last_price', {}).get(ticker, 0),
-                        'shares_owned': portfolio['positions'].get(ticker, 0),
-                        'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
-                        'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
-                        'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
-                        'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
-                        'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
-                        'return_pct': 0,  # Calculate if needed
-                        'cash_balance': portfolio['cash'],
-                        'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
-                    }
-                    store_backtest_record(supabase, record)
+        # # Store data if supabase client is provided
+        # if supabase:
+        #     for ticker in tickers:
+        #         store_analyst_signals(supabase, end_date, ticker, analyst_signals)
+        #         if ticker in decisions:
+        #             record = {
+        #                 'date': end_date,
+        #                 'ticker': ticker,
+        #                 'action': decisions[ticker].get('action', 'hold'),
+        #                 'quantity': decisions[ticker].get('quantity', 0),
+        #                 'price': portfolio.get('last_price', {}).get(ticker, 0),
+        #                 'shares_owned': portfolio['positions'].get(ticker, 0),
+        #                 'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
+        #                 'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
+        #                 'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
+        #                 'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
+        #                 'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
+        #                 'return_pct': 0,  # Calculate if needed
+        #                 'cash_balance': portfolio['cash'],
+        #                 'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
+        #             }
+        #             store_backtest_record(supabase, record)
 
         return {
             "decisions": decisions,
@@ -178,6 +176,25 @@ if __name__ == "__main__":
     )
     parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
     parser.add_argument("--show-reasoning", action="store_true", help="Show reasoning from each agent")
+
+    parser.add_argument(
+    "--execute-trades",
+    action="store_true",
+    help="Execute trades through Alpaca"
+    )
+    parser.add_argument(
+        "--trade-amount",
+        type=float,
+        default=100000.0,
+        help="Amount to invest per buy order (default: 100000.0)"
+    )
+
+    parser.add_argument(
+    "--leverage",
+    type=int,
+    default=5,
+    help="Leverage ratio for CFD trading (default: 5)"
+    )
 
     args = parser.parse_args()
 
@@ -250,3 +267,24 @@ if __name__ == "__main__":
         supabase=supabase
     )
     print_trading_output(result)
+
+    print("\n")
+    print("***************")
+    print(args.execute_trades)
+    print("args.execute_trades")
+    print("***************")
+    print(result.get('decisions'))
+    # CFD trading
+    if args.execute_trades and result.get('decisions'):
+        print("\nExecuting trades through Alpaca...")
+        trade_results = execute_trades(
+            result['decisions'],
+            fixed_amount=args.trade_amount,
+            leverage=args.leverage  
+        )
+
+
+
+# HPE
+# KNOP
+# ZIM
