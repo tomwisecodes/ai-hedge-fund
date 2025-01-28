@@ -71,7 +71,7 @@ response_data: List[StockEntry] = response.data
 # Get tickers mentioned in the last 30 days
 tickers = get_recent_tickers(response_data)
 print("tickers length", len(tickers))
-for ticker in tickers[:5]:
+for ticker in tickers:
     print("Processing ticker:", ticker)
     try:
         print(f"*******Processing {ticker}")
