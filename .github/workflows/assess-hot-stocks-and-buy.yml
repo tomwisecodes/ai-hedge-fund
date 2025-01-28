@@ -1,7 +1,9 @@
-name: AI Hedge Fund Bot Main
+name: Assess Hot Stocks and Buy/Sell 
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  schedule:
+    - cron: "0 12 * * *"  
+  workflow_dispatch:  
 
 jobs:
   trade:
@@ -29,16 +31,19 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
-
-      - name: Debug Environment Variables
-        run: |
-          echo "SUPABASE_URL: ${{ secrets.SUPABASE_URL }}"
-          echo "SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}"
           
-      - name: Run Trading Bot
-        run: echo -e "a\n" | poetry run python src/main.py --ticker AAPL
+      - name: Run scraper
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          poetry run python src/db/stocks_from_db.py 
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FINANCIAL_DATASETS_API_KEY: ${{ secrets.FINANCIAL_DATASETS_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          ALPACA_URL: ${{ secrets.ALPACA_URL }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}

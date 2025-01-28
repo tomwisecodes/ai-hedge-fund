@@ -270,8 +270,7 @@ if __name__ == "__main__":
 
     print("\n")
     print("***************")
-    print(args.execute_trades)
-    print("args.execute_trades")
+    print(args.execute_trades ? "Making purchase" : "Moving on...")
     print("***************")
     print(result.get('decisions'))
     # CFD trading
@@ -282,9 +281,3 @@ if __name__ == "__main__":
             fixed_amount=args.trade_amount,
             leverage=args.leverage  
         )
-
-
-
-# HPE
-# KNOP
-# ZIM

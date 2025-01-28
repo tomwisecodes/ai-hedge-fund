@@ -4,12 +4,12 @@ import json
 import time
 from supabase import create_client, Client
 from typing import TypedDict, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 from pathlib import Path
 
-from utils.ticker_utils import get_sec_tickers
+from src.utils.ticker_utils import get_sec_tickers
 
 # Get project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -31,25 +31,39 @@ class StockEntry(TypedDict):
 # Manually set the headers at the PostgREST level
 supabase.postgrest.auth(token=key)
 
+def get_recent_tickers(response_data, days=30):
+    """Filters tickers mentioned in the last `days` days."""
+    recent_tickers = []
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    for stock in response_data:
+        last_mentioned_raw = stock.get('last_mentioned')  # Use .get() to avoid KeyError
+        
+        if last_mentioned_raw is None:
+            continue  # Skip entries with no last_mentioned date
+        
+        # Ensure last_mentioned is a datetime object
+        if isinstance(last_mentioned_raw, datetime):
+            last_mentioned = last_mentioned_raw
+        else:
+            last_mentioned = datetime.fromisoformat(str(last_mentioned_raw))
+
+        if last_mentioned >= cutoff_date:
+            recent_tickers.append(stock['ticker'])
+    
+    return recent_tickers
+
+
 response = supabase.table("stocks").select("*").execute()
 response_data: List[StockEntry] = response.data
 
-#organise into array of tickers
-
-tickers = []
-for stock in response_data:
-    tickers.append(stock['ticker'])
-
-short_list_tickers = tickers[20:40]
-print(short_list_tickers)
-
-# short_list_tickers = ["NVDA", "GOOGL"]
-
-
-
-for ticker in short_list_tickers:
+# Get tickers mentioned in the last 30 days
+tickers = get_recent_tickers(response_data)
+print("tickers length", len(tickers))
+for ticker in tickers:
     print("Processing ticker:", ticker)
     try:
+        print(f"*******Processing {ticker}")
         sec_tickers = get_sec_tickers()
         ticker_valid = any(company['ticker'] == ticker 
                          for company in sec_tickers.values())
@@ -57,8 +71,8 @@ for ticker in short_list_tickers:
         if not ticker_valid:
             print(f"Warning: {ticker} not found")
             continue
-            
-        cmd = f'echo -e "a\\n" | poetry run python src/main.py --ticker {ticker}'
+
+        cmd = f'echo -e "a\n" | poetry run python src/main.py --ticker {ticker} --execute-trades --trade-amount 2000 --leverage 1'
         subprocess.run(cmd, shell=True, cwd=str(PROJECT_ROOT))
         time.sleep(1)  # Rate limiting
         
