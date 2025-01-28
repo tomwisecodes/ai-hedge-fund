@@ -32,21 +32,32 @@ class StockEntry(TypedDict):
 supabase.postgrest.auth(token=key)
 
 def get_recent_tickers(response_data, days=30):
-    """Filters tickers mentioned in the last `days` days."""
+    """Filters tickers mentioned in the last days days."""
     recent_tickers = []
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
     for stock in response_data:
-        last_mentioned_raw = stock.get('last_mentioned')  # Use .get() to avoid KeyError
+        last_mentioned_raw = stock.get('last_mentioned')
         
         if last_mentioned_raw is None:
-            continue  # Skip entries with no last_mentioned date
+            continue
         
-        # Ensure last_mentioned is a datetime object
+        # Handle datetime object
         if isinstance(last_mentioned_raw, datetime):
             last_mentioned = last_mentioned_raw
         else:
-            last_mentioned = datetime.fromisoformat(str(last_mentioned_raw))
+            try:
+                # Try direct fromisoformat first
+                last_mentioned = datetime.fromisoformat(str(last_mentioned_raw))
+            except ValueError:
+                # If that fails, pad the microseconds to 6 digits
+                timestamp_str = str(last_mentioned_raw)
+                if '.' in timestamp_str:
+                    main_part, microseconds = timestamp_str.rsplit('.', 1)
+                    # Pad microseconds with zeros if needed
+                    microseconds = microseconds.ljust(6, '0')
+                    timestamp_str = f"{main_part}.{microseconds}"
+                last_mentioned = datetime.fromisoformat(timestamp_str)
 
         if last_mentioned >= cutoff_date:
             recent_tickers.append(stock['ticker'])
@@ -65,8 +76,7 @@ for ticker in tickers[:5]:
     try:
         print(f"*******Processing {ticker}")
         sec_tickers = get_sec_tickers()
-        ticker_valid = any(company['ticker'] == ticker 
-                         for company in sec_tickers.values())
+        ticker_valid = ticker in sec_tickers
         
         if not ticker_valid:
             print(f"Warning: {ticker} not found")
