@@ -270,7 +270,7 @@ if __name__ == "__main__":
 
     print("\n")
     print("***************")
-    print(args.execute_trades ? "Making purchase" : "Moving on...")
+    print("Making purchase" if args.execute_trades else "Moving on...")
     print("***************")
     print(result.get('decisions'))
     # CFD trading
