@@ -6,6 +6,7 @@ import asyncpraw
 from typing import TypedDict
 import asyncio
 import os
+import requests
 from dotenv import load_dotenv
 from src.reddit.getComments import get_comments
 
@@ -15,19 +16,30 @@ load_dotenv()
 # Retrieve Supabase URL and Key from environment variables
 url = os.getenv("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL') or os.environ.get('SLACK_WEBHOOK_URL')
 
 if not url or not key:
     raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
+
+if not WEBHOOK_URL:
+    raise ValueError("Please set SLACK_WEBHOOK_URL environment variable")
 
 # Initialize Supabase client
 supabase: Client = create_client(url, key)
 supabase.postgrest.auth(token=key)
 
+def send_slack_message(message: str):
+    """Send a message to Slack using webhook"""
+    try:
+        requests.post(WEBHOOK_URL, json={"text": message})
+        logger.info(f"Slack notification sent: {message}")
+    except Exception as e:
+        logger.error(f"Error sending Slack notification: {e}")
+
 class DiscussionPost(TypedDict):
     postId: str
     created_at: float
     title: str
-
 
 def store_daily_discussion(supabase, post_id, title):
     """Store a single daily discussion post"""
@@ -51,8 +63,6 @@ async def get_daily_discussion(reddit: asyncpraw.Reddit) -> str:
         
         try:
             sticky = await wsb.sticky()
-            
-            
             if sticky.link_flair_text == 'Daily Discussion':
                 daily_discussion_id = sticky.id
         except:
@@ -65,10 +75,6 @@ async def get_daily_discussion(reddit: asyncpraw.Reddit) -> str:
         else:
             # If the daily discussion is not stickied, get the 10 newest posts
             posts = [post async for post in wsb.new(limit=50)]
-            
-            # # print post titles 
-            # for post in posts:
-            #     print(post.title)
             
             daily_discussion = next(
                 (post for post in posts 
@@ -137,20 +143,25 @@ async def main():
         discussion_id = await get_daily_discussion(reddit)
 
         if discussion_id == 'No daily discussion found':
-            logger.error('No daily discussion found. Exiting...')
+            error_msg = '❌ No daily discussion found. Exiting...'
+            logger.error(error_msg)
+            send_slack_message(error_msg)
             return
 
         logger.info(f"Daily discussion ID: {discussion_id}")
 
         comments = await get_comments(discussion_id, reddit)
+        success_msg = f"✅ Reddit Script Complete!\nFound {len(comments)} comments\nDiscussion ID: {discussion_id}"
+        send_slack_message(success_msg)
         logger.info(f"Found {len(comments)} comments in the daily discussion")   
 
+    except Exception as e:
+        error_msg = f"❌ Error in Reddit script: {str(e)}"
+        logger.error(error_msg)
+        send_slack_message(error_msg)
+        raise
     finally:
         await reddit.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
-    
