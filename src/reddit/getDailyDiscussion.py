@@ -60,7 +60,7 @@ async def get_daily_discussion(reddit: asyncpraw.Reddit) -> str:
 
         if daily_discussion_id:
             # Write the daily discussion ID to the database
-            store_daily_discussion(supabase, daily_discussion.id, daily_discussion.title)
+            store_daily_discussion(supabase, daily_discussion_id, sticky.link_flair_text)
             return daily_discussion_id
         else:
             # If the daily discussion is not stickied, get the 10 newest posts
@@ -115,9 +115,6 @@ async def get_daily_discussions(
                     'created_at': post.created_utc
                 })
 
-        if not daily_discussions:
-            logger.info('No daily discussions found')
-
         return daily_discussions
 
     except Exception as error:
@@ -144,9 +141,6 @@ async def main():
             return
 
         logger.info(f"Daily discussion ID: {discussion_id}")
-        
-        discussions = await get_daily_discussions(reddit, limit=10, skip=0)
-        logger.info(f"Found {len(discussions)} discussions")
 
         comments = await get_comments(discussion_id, reddit)
         logger.info(f"Found {len(comments)} comments in the daily discussion")   
