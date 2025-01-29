@@ -16,12 +16,12 @@ load_dotenv()
 # Retrieve Supabase URL and Key from environment variables
 url = os.getenv("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
-WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL') or os.environ.get('SLACK_WEBHOOK_URL')
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL') or os.environ.get('SLACK_WEBHOOK_URL')
 
 if not url or not key:
     raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
 
-if not WEBHOOK_URL:
+if not SLACK_WEBHOOK_URL:
     raise ValueError("Please set SLACK_WEBHOOK_URL environment variable")
 
 # Initialize Supabase client
@@ -31,7 +31,7 @@ supabase.postgrest.auth(token=key)
 def send_slack_message(message: str):
     """Send a message to Slack using webhook"""
     try:
-        requests.post(WEBHOOK_URL, json={"text": message})
+        requests.post(SLACK_WEBHOOK_URL, json={"text": message})
         logger.info(f"Slack notification sent: {message}")
     except Exception as e:
         logger.error(f"Error sending Slack notification: {e}")
