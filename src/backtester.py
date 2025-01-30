@@ -11,7 +11,7 @@ from colorama import Fore, Style, init
 
 from utils.analysts import ANALYST_ORDER
 from main import run_hedge_fund
-from tools.api import (
+from src.tools.api import (
     get_company_news,
     get_price_data,
     get_prices,

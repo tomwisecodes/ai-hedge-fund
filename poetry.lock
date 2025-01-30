@@ -159,6 +159,18 @@ files = [
 typing_extensions = ">=3.7.2"
 
 [[package]]
+name = "alpaca"
+version = "1.0.0"
+description = "UNKNOWN"
+optional = false
+python-versions = "*"
+groups = ["main"]
+markers = "python_version <= \"3.11\" or python_version >= \"3.12\""
+files = [
+    {file = "alpaca-1.0.0.tar.gz", hash = "sha256:a02b0b317c8cb098a0c78fd62909f88d971530fbbccbdb4abca2c18413833ba0"},
+]
+
+[[package]]
 name = "alpaca-py"
 version = "0.37.0"
 description = "The Official Python SDK for Alpaca APIs"
@@ -3627,4 +3639,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "a6f7c05a5c73a33d0df6879d574acc402f83c295cfa13aa1c56ddc07b851e5b2"
+content-hash = "d2b7f08e2cbe34fdbc432f965c0113ff7166f5b5180b43fd4d81c4cabcee33ad"

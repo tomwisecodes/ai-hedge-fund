@@ -4,6 +4,7 @@ from langgraph.graph import END, StateGraph
 from colorama import Fore, Back, Style, init
 import questionary
 import os
+from src.traders.trading_decisions import enhance_trading_decisions
 from supabase import create_client, Client
 from agents.fundamentals import fundamentals_agent
 from agents.portfolio_manager import portfolio_management_agent
@@ -18,7 +19,8 @@ from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
 from db.functions import store_backtest_record, store_analyst_signals
 from traders.alpaca_cfd import execute_trades
-
+from alpaca.trading.client import TradingClient
+from alpaca.data.historical import StockHistoricalDataClient
 import argparse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -33,6 +35,29 @@ key = os.getenv("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY"
 
 if not url or not key:
     raise ValueError("Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.")
+
+
+# Debug environment variables
+print("\nDebugging Environment Variables:")
+print(f"ALPACA_API_KEY exists: {'ALPACA_API_KEY' in os.environ}")
+print(f"ALPACA_API_SECRET exists: {'ALPACA_API_SECRET' in os.environ}")
+        
+        
+ALPACA_API_KEY = (
+    os.getenv('ALPACA_API_KEY') or 
+    os.environ.get('ALPACA_API_KEY') or 
+    os.getenv('APCA_API_KEY_ID')
+    )
+ALPACA_API_SECRET = (
+    os.getenv('ALPACA_API_SECRET') or 
+    os.environ.get('ALPACA_API_SECRET') or 
+    os.getenv('APCA_API_SECRET_KEY')
+    )
+        
+# Print diagnostic information
+print("\nAPI Key Status:")
+print(f"API Key length: {len(ALPACA_API_KEY) if ALPACA_API_KEY else 0}")
+print(f"API Secret length: {len(ALPACA_API_SECRET) if ALPACA_API_SECRET else 0}")
 
 
 # Initialize Supabase client
@@ -85,28 +110,28 @@ def run_hedge_fund(
         decisions = parse_hedge_fund_response(final_state["messages"][-1].content)
         analyst_signals = final_state["data"]["analyst_signals"]
 
-        # # Store data if supabase client is provided
-        # if supabase:
-        #     for ticker in tickers:
-        #         store_analyst_signals(supabase, end_date, ticker, analyst_signals)
-        #         if ticker in decisions:
-        #             record = {
-        #                 'date': end_date,
-        #                 'ticker': ticker,
-        #                 'action': decisions[ticker].get('action', 'hold'),
-        #                 'quantity': decisions[ticker].get('quantity', 0),
-        #                 'price': portfolio.get('last_price', {}).get(ticker, 0),
-        #                 'shares_owned': portfolio['positions'].get(ticker, 0),
-        #                 'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
-        #                 'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
-        #                 'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
-        #                 'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
-        #                 'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
-        #                 'return_pct': 0,  # Calculate if needed
-        #                 'cash_balance': portfolio['cash'],
-        #                 'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
-        #             }
-        #             store_backtest_record(supabase, record)
+        # Store data if supabase client is provided
+        if supabase:
+            for ticker in tickers:
+                store_analyst_signals(supabase, end_date, ticker, analyst_signals)
+                if ticker in decisions:
+                    record = {
+                        'date': end_date,
+                        'ticker': ticker,
+                        'action': decisions[ticker].get('action', 'hold'),
+                        'quantity': decisions[ticker].get('quantity', 0),
+                        'price': portfolio.get('last_price', {}).get(ticker, 0),
+                        'shares_owned': portfolio['positions'].get(ticker, 0),
+                        'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
+                        'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
+                        'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
+                        'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
+                        'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
+                        'return_pct': 0,  # Calculate if needed
+                        'cash_balance': portfolio['cash'],
+                        'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
+                    }
+                    store_backtest_record(supabase, record)
 
         return {
             "decisions": decisions,
@@ -273,11 +298,26 @@ if __name__ == "__main__":
     print("Making purchase" if args.execute_trades else "Moving on...")
     print("***************")
     print(result.get('decisions'))
+    
     # CFD trading
+    
     if args.execute_trades and result.get('decisions'):
-        print("\nExecuting trades through Alpaca...")
-        trade_results = execute_trades(
+        print("\nEnhancing trading decisions with position sizing and risk management...")
+        
+        # Initialize clients
+        trading_client = TradingClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'), paper=True)
+        data_client = StockHistoricalDataClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'))
+        
+        # Enhance decisions with position sizing and risk management
+        enhanced_decisions = enhance_trading_decisions(
             result['decisions'],
+            trading_client,
+            data_client
+        )
+        
+        print("\nExecuting enhanced trades through Alpaca...")
+        trade_results = execute_trades(
+            enhanced_decisions,
             fixed_amount=args.trade_amount,
-            leverage=args.leverage  
+            leverage=args.leverage
         )

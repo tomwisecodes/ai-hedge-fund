@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage
 from graph.state import AgentState, show_agent_reasoning
 from utils.progress import progress
-from tools.api import get_prices, prices_to_df
+from src.tools.api import get_prices, prices_to_df
 import json
 
 
@@ -24,6 +24,9 @@ def risk_management_agent(state: AgentState):
             start_date=data["start_date"],
             end_date=data["end_date"],
         )
+
+        print("********************prices")
+        print(prices)
 
         if not prices:
             progress.update_status("risk_management_agent", ticker, "Failed: No price data found")

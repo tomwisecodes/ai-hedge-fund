@@ -1,0 +1,10 @@
+- Address last mentioned and created at socks
+- Add Rudementry logic about buy and sell
+- Refactor and pay for to use Alpha Van
+- Build descion based packages
+- Let run $$$$
+- Refactor to deepseek??
+
+
+AFTER
+low latency spread bet/ cyrto alogo
