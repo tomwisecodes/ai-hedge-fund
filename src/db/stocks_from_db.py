@@ -94,12 +94,13 @@ print(f"Total unique tickers to process: {len(db_tickers_hot)}")
 
 # Combine DB tickers with owned positions and remove duplicates
 tickers = list(set(owned_tickers + db_tickers_hot))
-print(f"Total unique tickers to process: {len(tickers)}")
-success_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers"
+max_100_tickers = tickers[:100]
+print(f"Total unique tickers to process: {len(max_100_tickers)}")
+success_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(max_100_tickers)} tickers"
 
 success_array = []
 error_array = []
-for ticker in tickers[:5]:
+for ticker in max_100_tickers:
     print(f"Processing ticker: {ticker}")
     try:
         # print(f"*******Processing {ticker}")
