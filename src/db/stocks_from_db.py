@@ -97,7 +97,7 @@ tickers = list(set(owned_tickers + db_tickers_hot))
 max_100_tickers = tickers[:100]
 print(f"Total unique tickers to process: {len(max_100_tickers)}")
 success_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(max_100_tickers)} tickers"
-
+send_slack_message(success_msg)
 success_array = []
 error_array = []
 for ticker in max_100_tickers:
@@ -124,4 +124,4 @@ for ticker in max_100_tickers:
 
 # Send Slack message with results
 success_msg = f":bar_chart: :alien: Hedge fund bot finished processing {len(success_array)} tickers: {', '.join(success_array)} and encountered errors with {len(error_array)} tickers: {', '.join(error_array)}"
-# send_slack_message(success_msg)
+send_slack_message(success_msg)
