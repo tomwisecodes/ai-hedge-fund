@@ -51,13 +51,16 @@ if not ALPACA_API_KEY or not ALPACA_API_SECRET:
     logger.error(error_msg)
     raise ValueError(error_msg)
 
-def enhance_trading_decisions(decisions, portfolio_value, owned_positions):
+def enhance_trading_decisions(decisions, trading_client, owned_positions):
     enhanced_decisions = {}
     
     # Get account info for risk calculations
-    trading_client = TradingClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'), paper=True)
     account = trading_client.get_account()
     available_cash = float(account.cash)
+    portfolio_value = float(account.portfolio_value)  # Get actual portfolio value from account
+    
+    # Get all positions from the trading client
+    positions = trading_client.get_all_positions()
     
     # Risk parameters
     MAX_POSITION_PCT = 0.2  # No position > 20% of portfolio
@@ -66,15 +69,39 @@ def enhance_trading_decisions(decisions, portfolio_value, owned_positions):
     for symbol, decision in decisions.items():
         action = decision.get('action', 'hold')
         
-        # Get current position if any
-        current_position = next((p for p in owned_positions if p.symbol == symbol), None)
+        # Get current position (could be long or short)
+        current_position = next((p for p in positions if p.symbol == symbol), None)
         
-        if action == 'sell' and current_position:
-            # If selling, liquidate entire position
-            enhanced_decisions[symbol] = {
-                'action': 'sell',
-                'quantity': float(current_position.qty)
-            }
+        if action == 'sell':
+            # Get latest price for position sizing
+            data_client = StockHistoricalDataClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'))
+            quote = data_client.get_stock_latest_quote(StockLatestQuoteRequest(symbol_or_symbols=symbol))
+            price = float(quote[symbol].ask_price)
+            
+            if current_position:
+                # If we own it, sell entire position
+                enhanced_decisions[symbol] = {
+                    'action': 'sell',
+                    'quantity': float(current_position.qty)
+                }
+            else:
+                # If we don't own it, calculate short position size
+                max_position_value = portfolio_value * MAX_POSITION_PCT
+                cash_available = available_cash * (1 - MIN_CASH_BUFFER)
+                
+                # Calculate quantity to short
+                quantity = min(
+                    int(max_position_value / price),
+                    int(cash_available / price)
+                )
+                
+                if quantity > 0:
+                    enhanced_decisions[symbol] = {
+                        'action': 'sell',  # This will create a short position
+                        'quantity': quantity
+                    }
+                else:
+                    enhanced_decisions[symbol] = {'action': 'hold'}
             
         elif action == 'buy':
             # Calculate maximum position size

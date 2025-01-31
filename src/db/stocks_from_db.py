@@ -85,23 +85,24 @@ response = supabase.table("stocks").select("*").execute()
 response_data: List[StockEntry] = response.data
 
 # Get tickers mentioned in the last 30 days
-db_tickers = get_recent_tickers(response_data)
-db_tickers_2 = get_hot_stocks(supabase)
+# db_tickers = get_recent_tickers(response_data)
+db_tickers_hot = get_hot_stocks(supabase)
 
 
+print(f"Owned tickers: {len(owned_tickers)}")
+print(f"Total unique tickers to process: {len(db_tickers_hot)}")
 
 # Combine DB tickers with owned positions and remove duplicates
-tickers = list(set(owned_tickers + db_tickers))
+tickers = list(set(owned_tickers + db_tickers_hot))
 print(f"Total unique tickers to process: {len(tickers)}")
 success_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers"
-send_slack_message(success_msg)
 
 success_array = []
 error_array = []
-for ticker in tickers:
+for ticker in tickers[:5]:
     print(f"Processing ticker: {ticker}")
     try:
-        print(f"*******Processing {ticker}")
+        # print(f"*******Processing {ticker}")
         sec_tickers = get_sec_tickers()
         ticker_valid = ticker in sec_tickers
         
@@ -116,10 +117,10 @@ for ticker in tickers:
         success_array.append(ticker)
     except Exception as e:
         print(f"Error processing {ticker}: {str(e)}")
-        error_array.append(ticker)
+        error_array.append({{ticker}: {str(e)}})
         time.sleep(5)  # Longer delay on error
         continue
 
 # Send Slack message with results
 success_msg = f":bar_chart: :alien: Hedge fund bot finished processing {len(success_array)} tickers: {', '.join(success_array)} and encountered errors with {len(error_array)} tickers: {', '.join(error_array)}"
-send_slack_message(success_msg)
+# send_slack_message(success_msg)

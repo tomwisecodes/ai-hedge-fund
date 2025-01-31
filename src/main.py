@@ -17,7 +17,7 @@ from agents.valuation import valuation_agent
 from utils.display import print_trading_output
 from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
-from db.functions_files import store_backtest_record, store_analyst_signals
+from db.functions import store_backtest_record, store_analyst_signals
 from traders.alpaca_cfd import execute_trades
 from alpaca.trading.client import TradingClient
 from alpaca.data.historical import StockHistoricalDataClient
@@ -225,7 +225,6 @@ if __name__ == "__main__":
 
     # Parse tickers from comma-separated string
     tickers = [ticker.strip() for ticker in args.tickers.split(",")]
-
     selected_analysts = None
     choices = questionary.checkbox(
         "Select your AI analysts.",
@@ -297,13 +296,19 @@ if __name__ == "__main__":
     print("***************")
     print("Making purchase" if args.execute_trades else "Moving on...")
     print("***************")
-    print(result.get('decisions'))
+    ticker = tickers[0]
+    decision = result.get('decisions').get(ticker).get('action')
+    print(f"Decision for {ticker}: {decision}")
     
-    # CFD trading
+    if decision == "hold": 
+        print("No trades to execute. Exiting...")
+        exit(0)
+
+    # # CFD trading
     
     if args.execute_trades and result.get('decisions'):
         print("\nEnhancing trading decisions with position sizing and risk management...")
-        
+       
         # Initialize clients
         trading_client = TradingClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'), paper=True)
         data_client = StockHistoricalDataClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'))
