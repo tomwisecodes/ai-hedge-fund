@@ -17,7 +17,7 @@ from agents.valuation import valuation_agent
 from utils.display import print_trading_output
 from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
-from db.functions import store_backtest_record, store_analyst_signals
+from db.functions_files import store_backtest_record, store_analyst_signals
 from traders.alpaca_cfd import execute_trades
 from alpaca.trading.client import TradingClient
 from alpaca.data.historical import StockHistoricalDataClient

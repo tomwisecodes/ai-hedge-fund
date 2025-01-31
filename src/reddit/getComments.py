@@ -70,23 +70,27 @@ async def get_comments(
     ]
 
     # # Make an Set of unique tickers
-    unique_tickers = set()
+    # unique_tickers = set()
+    non_unique_tickers = []
     for comment in comments_with_tickers:
-        unique_tickers.update(comment['tickers'])
+        non_unique_tickers.extend(comment['tickers'])
+        # unique_tickers.update(comment['tickers'])
 
-    logger.info(f"Found {len(unique_tickers)} unique tickers")
+    logger.info(f"Found {len(non_unique_tickers)} non unique tickers")
 
 
     # Write the unique tickers to the db
-    for ticker in list(unique_tickers):
+    
+
+    for ticker in list(non_unique_tickers):
         
         try:
             company_name = get_company_name(ticker)
+            logger.info(f"Storing stock record for {ticker} - {company_name}")
             store_stock_record(supabase, ticker, company_name)
         except Exception as e:
-            logger.error(f"Error processing ticker: {e}")
-
-    logger.info(f"Stored {len(unique_tickers)} unique tickers")
+            logger.error(f"Error processing ticker£: {e}")
+    logger.info(f"Stored {len(non_unique_tickers)} non unique tickers")
 
     # Write the comments to the db 
 
@@ -141,7 +145,7 @@ async def grab_set_number_of_comments(
     try:
         all_comments = []
         for top_comment in submission.comments:
-            if hasattr(top_comment, 'body'):  # Check if it's a real comment
+            if hasattr(top_comment, 'body'):  
                 all_comments.append(top_comment)
                 # Get replies
                 if hasattr(top_comment, 'replies'):
@@ -181,10 +185,10 @@ async def main():
         post_id = "example_post_id"
         existing_ids = []  # Add any existing comment IDs here
         
-        comments = await get_comments(post_id, reddit, existing_ids)
+        comments_with_tickers = await get_comments(post_id, reddit, existing_ids)
         
-        print(f"Found {len(comments)} new comments")
-        for comment in comments[:5]:  # Print first 5 comments as example
+        print(f"Found {len(comments_with_tickers)} new comments")
+        for comment in comments_with_tickers[:5]:  # Print first 5 comments as example
             created_time = convert_utc_to_date_and_time(comment['createdAt'])
             print(f"Comment ID: {comment['id']}")
             print(f"Created at: {created_time}")

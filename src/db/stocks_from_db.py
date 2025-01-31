@@ -2,6 +2,8 @@ import subprocess
 import requests
 import json
 import time
+from src.db.functions import get_hot_stocks
+from src.reddit.getDailyDiscussion import send_slack_message
 from supabase import create_client, Client
 from typing import TypedDict, List
 from datetime import datetime, timedelta
@@ -84,11 +86,18 @@ response_data: List[StockEntry] = response.data
 
 # Get tickers mentioned in the last 30 days
 db_tickers = get_recent_tickers(response_data)
+db_tickers_2 = get_hot_stocks(supabase)
+
+
 
 # Combine DB tickers with owned positions and remove duplicates
 tickers = list(set(owned_tickers + db_tickers))
 print(f"Total unique tickers to process: {len(tickers)}")
+success_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers"
+send_slack_message(success_msg)
 
+success_array = []
+error_array = []
 for ticker in tickers:
     print(f"Processing ticker: {ticker}")
     try:
@@ -101,10 +110,16 @@ for ticker in tickers:
             continue
             
         cmd = f'echo -e "a\n" | poetry run python src/main.py --ticker {ticker} --execute-trades --trade-amount 2000 --leverage 1'
+
         subprocess.run(cmd, shell=True, cwd=str(PROJECT_ROOT))
         time.sleep(1)  # Rate limiting
-        
+        success_array.append(ticker)
     except Exception as e:
         print(f"Error processing {ticker}: {str(e)}")
+        error_array.append(ticker)
         time.sleep(5)  # Longer delay on error
         continue
+
+# Send Slack message with results
+success_msg = f":bar_chart: :alien: Hedge fund bot finished processing {len(success_array)} tickers: {', '.join(success_array)} and encountered errors with {len(error_array)} tickers: {', '.join(error_array)}"
+send_slack_message(success_msg)
