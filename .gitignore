@@ -38,4 +38,4 @@ ENV/
 .DS_Store
 Thumbs.db 
 
-./notes.txt
+notes.txt

@@ -17,7 +17,7 @@ from src.tools.api import (
     get_prices,
     get_financial_metrics,
     get_insider_trades,
-    search_line_items,
+    search_line_items_warren_buff,
 )
 from utils.display import print_backtest_results, format_backtest_row
 
@@ -185,7 +185,7 @@ class Backtester:
             get_financial_metrics(ticker, self.end_date, limit=10)
             get_insider_trades(ticker, self.end_date, start_date=self.start_date, limit=1000)
             get_company_news(ticker, self.end_date, start_date=self.start_date, limit=1000)
-            search_line_items(
+            search_line_items_warren_buff(
                 ticker,
                 [
                     "free_cash_flow",

@@ -3,7 +3,7 @@ from graph.state import AgentState, show_agent_reasoning
 from src.tools.api import (
     get_financial_metrics,
     get_market_cap,
-    search_line_items
+    search_line_items_warren_buff
 )
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
@@ -34,7 +34,7 @@ def warren_buffett_agent(state: AgentState):
         metrics = get_financial_metrics(ticker, end_date, period="ttm", limit=5)
         
         progress.update_status("warren_buffett_agent", ticker, "Gathering financial line items")
-        financial_line_items = search_line_items(
+        financial_line_items = search_line_items_warren_buff(
             ticker,
             [
                 "capital_expenditure", 

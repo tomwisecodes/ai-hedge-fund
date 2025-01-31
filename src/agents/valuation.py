@@ -3,7 +3,7 @@ from graph.state import AgentState, show_agent_reasoning
 from utils.progress import progress
 import json
 
-from src.tools.api import get_financial_metrics, get_market_cap, search_line_items
+from src.tools.api import get_financial_metrics, get_market_cap, search_valuation_line_items
 
 
 ##### Valuation Agent #####
@@ -35,7 +35,7 @@ def valuation_agent(state: AgentState):
 
         progress.update_status("valuation_agent", ticker, "Gathering line items")
         # Fetch the specific line_items that we need for valuation purposes
-        financial_line_items = search_line_items(
+        financial_line_items = search_valuation_line_items(
             ticker=ticker,
             line_items=[
                 "free_cash_flow",
@@ -61,10 +61,6 @@ def valuation_agent(state: AgentState):
         capital_change = current_financial_line_item.working_capital
         cp = previous_financial_line_item.working_capital
 
-        print("************************")
-        print(cp)
-        print(capital_change)
-
         progress.update_status("valuation_agent", ticker, "Calculating owner earnings")
         # Calculate working capital change
         working_capital_change = current_financial_line_item.working_capital - previous_financial_line_item.working_capital
@@ -82,8 +78,10 @@ def valuation_agent(state: AgentState):
 
         progress.update_status("valuation_agent", ticker, "Calculating DCF value")
         # DCF Valuation
+        free_cash_flow = current_financial_line_item.free_cash_flow
+
         dcf_value = calculate_intrinsic_value(
-            free_cash_flow=current_financial_line_item.free_cash_flow,
+            free_cash_flow=free_cash_flow,
             growth_rate=metrics.earnings_growth,
             discount_rate=0.10,
             terminal_growth_rate=0.03,
@@ -216,6 +214,10 @@ def calculate_intrinsic_value(
     Use this function to calculate the intrinsic value of a stock.
     """
     # Estimate the future cash flows based on the growth rate
+    # print("free_cash_flow", free_cash_flow)
+    # print("growth_rate", growth_rate)
+    # print("num_years", num_years)
+
     cash_flows = [free_cash_flow * (1 + growth_rate) ** i for i in range(num_years)]
 
     # Calculate the present value of projected cash flows

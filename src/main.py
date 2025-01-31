@@ -111,27 +111,27 @@ def run_hedge_fund(
         analyst_signals = final_state["data"]["analyst_signals"]
 
         # Store data if supabase client is provided
-        if supabase:
-            for ticker in tickers:
-                store_analyst_signals(supabase, end_date, ticker, analyst_signals)
-                if ticker in decisions:
-                    record = {
-                        'date': end_date,
-                        'ticker': ticker,
-                        'action': decisions[ticker].get('action', 'hold'),
-                        'quantity': decisions[ticker].get('quantity', 0),
-                        'price': portfolio.get('last_price', {}).get(ticker, 0),
-                        'shares_owned': portfolio['positions'].get(ticker, 0),
-                        'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
-                        'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
-                        'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
-                        'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
-                        'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
-                        'return_pct': 0,  # Calculate if needed
-                        'cash_balance': portfolio['cash'],
-                        'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
-                    }
-                    store_backtest_record(supabase, record)
+        # if supabase:
+        #     for ticker in tickers:
+        #         store_analyst_signals(supabase, end_date, ticker, analyst_signals)
+        #         if ticker in decisions:
+        #             record = {
+        #                 'date': end_date,
+        #                 'ticker': ticker,
+        #                 'action': decisions[ticker].get('action', 'hold'),
+        #                 'quantity': decisions[ticker].get('quantity', 0),
+        #                 'price': portfolio.get('last_price', {}).get(ticker, 0),
+        #                 'shares_owned': portfolio['positions'].get(ticker, 0),
+        #                 'position_value': portfolio['positions'].get(ticker, 0) * portfolio.get('last_price', {}).get(ticker, 0),
+        #                 'bullish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bullish']),
+        #                 'bearish_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'bearish']),
+        #                 'neutral_count': len([s for s in analyst_signals.values() if s.get(ticker, {}).get('signal') == 'neutral']),
+        #                 'total_value': portfolio['cash'] + sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers),
+        #                 'return_pct': 0,  # Calculate if needed
+        #                 'cash_balance': portfolio['cash'],
+        #                 'total_position_value': sum(portfolio['positions'].get(t, 0) * portfolio.get('last_price', {}).get(t, 0) for t in tickers)
+        #             }
+        #             # store_backtest_record(supabase, record)
 
         return {
             "decisions": decisions,
