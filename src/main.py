@@ -1,3 +1,5 @@
+import sys
+
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
@@ -17,14 +19,13 @@ from agents.valuation import valuation_agent
 from utils.display import print_trading_output
 from utils.analysts import ANALYST_ORDER
 from utils.progress import progress
-from db.functions import store_backtest_record, store_analyst_signals
-from traders.alpaca_cfd import execute_trades
-from alpaca.trading.client import TradingClient
-from alpaca.data.historical import StockHistoricalDataClient
+from llm.models import LLM_ORDER, get_model_info
+
 import argparse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from tabulate import tabulate
+from utils.visualize import save_graph_as_png
 
 # Load environment variables from .env file
 load_dotenv()
@@ -84,25 +85,38 @@ def run_hedge_fund(
     end_date: str,
     portfolio: dict,
     show_reasoning: bool = False,
-    selected_analysts: list = None,
-    supabase=None
+    selected_analysts: list[str] = [],
+    model_name: str = "gpt-4o",
+    model_provider: str = "OpenAI",
 ):
     progress.start()
     try:
-        if selected_analysts is not None:
+        # Create a new workflow if analysts are customized
+        if selected_analysts:
             workflow = create_workflow(selected_analysts)
             agent = workflow.compile()
         else:
             agent = app
 
-        final_state = agent.invoke({
-            "messages": [HumanMessage(content="Make trading decisions based on the provided data.")],
-            "data": {
-                "tickers": tickers,
-                "portfolio": portfolio,
-                "start_date": start_date,
-                "end_date": end_date,
-                "analyst_signals": {},
+        final_state = agent.invoke(
+            {
+                "messages": [
+                    HumanMessage(
+                        content="Make trading decisions based on the provided data.",
+                    )
+                ],
+                "data": {
+                    "tickers": tickers,
+                    "portfolio": portfolio,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "analyst_signals": {},
+                },
+                "metadata": {
+                    "show_reasoning": show_reasoning,
+                    "model_name": model_name,
+                    "model_provider": model_provider,
+                },
             },
             "metadata": {"show_reasoning": show_reasoning},
         })
@@ -201,6 +215,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
     parser.add_argument("--show-reasoning", action="store_true", help="Show reasoning from each agent")
+    parser.add_argument(
+        "--show-agent-graph", action="store_true", help="Show the agent graph"
+    )
 
     parser.add_argument(
     "--execute-trades",
@@ -225,6 +242,8 @@ if __name__ == "__main__":
 
     # Parse tickers from comma-separated string
     tickers = [ticker.strip() for ticker in args.tickers.split(",")]
+
+    # Select analysts
     selected_analysts = None
     choices = questionary.checkbox(
         "Select your AI analysts.",
@@ -242,15 +261,48 @@ if __name__ == "__main__":
     ).ask()
 
     if not choices:
-        print("You must select at least one analyst. Using all analysts by default.")
-        selected_analysts = None
+        print("\n\nInterrupt received. Exiting...")
+        sys.exit(0)
     else:
         selected_analysts = choices
         print(f"\nSelected analysts: {', '.join(Fore.GREEN + choice.title().replace('_', ' ') + Style.RESET_ALL for choice in choices)}\n")
 
+    # Select LLM model
+    model_choice = questionary.select(
+        "Select your LLM model:",
+        choices=[questionary.Choice(display, value=value) for display, value, _ in LLM_ORDER],
+        style=questionary.Style([
+            ("selected", "fg:green bold"),
+            ("pointer", "fg:green bold"),
+            ("highlighted", "fg:green"),
+            ("answer", "fg:green bold"),
+        ])
+    ).ask()
+
+    if not model_choice:
+        print("\n\nInterrupt received. Exiting...")
+        sys.exit(0)
+    else:
+        # Get model info using the helper function
+        model_info = get_model_info(model_choice)
+        if model_info:
+            model_provider = model_info.provider.value
+            print(f"\nSelected {Fore.CYAN}{model_provider}{Style.RESET_ALL} model: {Fore.GREEN + Style.BRIGHT}{model_choice}{Style.RESET_ALL}\n")
+        else:
+            model_provider = "Unknown"
+            print(f"\nSelected model: {Fore.GREEN + Style.BRIGHT}{model_choice}{Style.RESET_ALL}\n")
+
     # Create the workflow with selected analysts
     workflow = create_workflow(selected_analysts)
     app = workflow.compile()
+
+    if args.show_agent_graph:
+        file_path = ""
+        if selected_analysts is not None:
+            for selected_analyst in selected_analysts:
+                file_path += selected_analyst + "_"
+            file_path += "graph.png"
+        save_graph_as_png(app, file_path)
 
     # Validate dates if provided
     if args.start_date:
@@ -288,7 +340,8 @@ if __name__ == "__main__":
         portfolio=portfolio,
         show_reasoning=args.show_reasoning,
         selected_analysts=selected_analysts,
-        supabase=supabase
+        model_name=model_choice,
+        model_provider=model_provider,
     )
     print_trading_output(result)
 

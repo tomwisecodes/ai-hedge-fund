@@ -39,3 +39,7 @@ ENV/
 Thumbs.db 
 
 notes.txt
+Thumbs.db
+
+# graph
+*.png
