@@ -1,4 +1,5 @@
 import os
+import traceback
 import pandas as pd
 import requests
 from pydantic import BaseModel
@@ -253,7 +254,7 @@ def search_valuation_line_items(
     line_items: list[str],
     end_date: str,
     period: str = "ttm",
-    limit: int = 2,  # Default to 2 since we need current and previous
+    limit: int = 2,
 ) -> list[ValuationLineItem]:
     """Fetch financial line items specifically for valuation analysis."""
     if period != "ttm":
@@ -269,7 +270,7 @@ def search_valuation_line_items(
         balance_sheet = get_alpha_vantage_data("BALANCE_SHEET", ticker, api_key)
         cash_flow = get_alpha_vantage_data("CASH_FLOW", ticker, api_key)
 
-        # Get quarterly and annual data
+        # Get quarterly data
         quarterly_income = income_stmt.get("quarterlyReports", [])
         quarterly_cash_flow = cash_flow.get("quarterlyReports", [])
         quarterly_balance = balance_sheet.get("quarterlyReports", [])
@@ -281,60 +282,61 @@ def search_valuation_line_items(
         
         # Process two TTM periods
         for i in range(2):
-            # Get the relevant quarterly data for this period
-            period_start_idx = i * 4
-            period_quarters_income = quarterly_income[period_start_idx:period_start_idx + 4]
-            period_quarters_cash = quarterly_cash_flow[period_start_idx:period_start_idx + 4]
-            period_balance = quarterly_balance[period_start_idx]  # Use the most recent quarter's balance sheet
+            try:
+                period_start_idx = i * 4
+                period_end_idx = period_start_idx + 4
+                
+                period_quarters_income = quarterly_income[period_start_idx:]
+                period_quarters_cash = quarterly_cash_flow[period_start_idx:]
+                period_balance = quarterly_balance[period_start_idx]
 
-            period_end = period_balance.get("fiscalDateEnding")
-            
-            free_cash_flow = calculate_ttm_value(period_quarters_cash, "operatingCashflow")
-            if free_cash_flow is None:
-                # throw error
-                print("Error calculating free cash flow")
-                return []
-            net_income = calculate_ttm_value(period_quarters_income, "netIncome")
-            if net_income is None: 
-                # throw error
-                print("Error calculating net income")
-                return [] 
-            depreciation_and_amortization = calculate_ttm_value(period_quarters_income, "depreciationAndAmortization")
-            if depreciation_and_amortization is None:
-                # throw error
-                print("Error calculating depreciation and amortization")
-                return []
-            capital_expenditure = calculate_ttm_value(period_quarters_cash, "capitalExpenditures")
-            if capital_expenditure is None:
-                # throw error
-                print("Error calculating capital expenditure")
-                return []
-            working_capital = calculate_working_capital(period_balance)
-            if working_capital is None:
-                # throw error
-                print("Error calculating working capital")
-                return []
-            
-            # Create LineItem for each period
-            line_item = ValuationLineItem(
-                ticker=ticker,
-                report_period=period_end,
-                free_cash_flow=free_cash_flow,
-                net_income=net_income,
-                depreciation_and_amortization=depreciation_and_amortization,
-                capital_expenditure=capital_expenditure,
-                working_capital=working_capital
-            )
-            
-            results.append(line_item)
-
-            
+                period_end = period_balance.get("fiscalDateEnding")
+                
+                print(f"Processing period {i} starting from {period_end}")
+                print(f"First quarter depreciation value: {period_quarters_income[0].get('depreciationAndAmortization')}")
+                
+                # Calculate values for this period
+                free_cash_flow = calculate_ttm_value(period_quarters_cash, "operatingCashflow")
+                net_income = calculate_ttm_value(period_quarters_income, "netIncome")
+                capital_expenditure = calculate_ttm_value(period_quarters_cash, "capitalExpenditures")
+                working_capital = calculate_working_capital(period_balance)
+                
+                # Special handling for depreciation
+                depreciation_and_amortization = None
+                if period_quarters_income[0].get('depreciationAndAmortization') == 'None':
+                    # Try to interpolate
+                    depreciation_and_amortization = interpolate_depreciation(period_quarters_income)
+                else:
+                    # Calculate normally if we have the value
+                    depreciation_and_amortization = calculate_ttm_value(period_quarters_income, "depreciationAndAmortization")
+                
+                # Validate all required values are present
+                if any(v is None for v in [free_cash_flow, net_income, capital_expenditure, working_capital]):
+                    print(f"Missing required values for period {period_end}")
+                    continue
+                
+                # Create line item even if depreciation is interpolated or missing
+                line_item = ValuationLineItem(
+                    ticker=ticker,
+                    report_period=period_end,
+                    free_cash_flow=free_cash_flow,
+                    net_income=net_income,
+                    depreciation_and_amortization=depreciation_and_amortization,
+                    capital_expenditure=capital_expenditure,
+                    working_capital=working_capital
+                )
+                
+                results.append(line_item)
+                
+            except Exception as e:
+                print(f"Error processing period {i}: {str(e)}")
+                continue
 
         return results[:limit]
         
     except Exception as e:
         print(f"Error processing valuation data for {ticker}: {str(e)}")
-        return []   
+        return []
 
 
 # **************************************
@@ -388,11 +390,64 @@ def get_alpha_vantage_data(endpoint: str, ticker: str, api_key: str) -> Dict[str
         
     return data
 
+def interpolate_depreciation(quarterly_data: List[dict]) -> Optional[float]:
+    """
+    Interpolate missing depreciation value based on the trend from previous quarters.
+    Only used when the most recent quarter has missing depreciation data.
+    """
+    if len(quarterly_data) < 4:
+        return None
+    
+    # Get the previous 4 quarters' depreciation values
+    values = []
+    for i in range(1, 5):  # Start from index 1 to get previous quarters
+        if i >= len(quarterly_data):
+            return None
+        value = safe_float_convert(quarterly_data[i].get('depreciationAndAmortization'))
+        if value is None:
+            return None
+        values.append(value)
+    
+    # Calculate the average quarter-over-quarter change
+    qoq_changes = []
+    for i in range(len(values)-1):
+        change = values[i] - values[i+1]
+        qoq_changes.append(change)
+    
+    # Use the trend to project forward
+    if qoq_changes:
+        avg_change = sum(qoq_changes) / len(qoq_changes)
+        interpolated_value = values[0] + avg_change
+        # Round to nearest thousand to match data format
+        return round(interpolated_value / 1000) * 1000
+    
+    return None
+
 def calculate_ttm_value_buff(quarterly_data: List[dict], field_name: str) -> Optional[float]:
-    """Calculate TTM value by summing last 4 quarters."""
+    """Calculate TTM value by summing last 4 quarters, with special handling for depreciation."""
     if not quarterly_data or len(quarterly_data) < 4:
         return None
         
+    # Special handling for depreciation and amortization
+    if field_name == 'depreciationAndAmortization':
+        values = []
+        first_quarter_value = safe_float_convert(quarterly_data[0].get(field_name))
+        
+        # Only interpolate if first quarter is None
+        if first_quarter_value is None:
+            interpolated_value = interpolate_depreciation(quarterly_data)
+            if interpolated_value is not None:
+                values.append(interpolated_value)
+                # Add the other quarters
+                for quarter in quarterly_data[1:4]:
+                    value = safe_float_convert(quarter.get(field_name))
+                    if value is None:
+                        return None
+                    values.append(value)
+                return sum(values)
+        return None
+    
+    # Standard handling for all other fields
     values = []
     for quarter in quarterly_data[:4]:
         value = safe_float_convert(quarter.get(field_name))

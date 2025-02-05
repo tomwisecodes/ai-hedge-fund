@@ -47,8 +47,7 @@ def valuation_agent(state: AgentState):
             end_date=end_date,
             period="ttm",
             limit=2,
-        )
-
+        )    
         # Add safety check for financial line items
         if len(financial_line_items) < 2:
             progress.update_status("valuation_agent", ticker, "Failed: Insufficient financial line items")
@@ -213,10 +212,6 @@ def calculate_intrinsic_value(
     Computes the discounted cash flow (DCF) for a given company based on the current free cash flow.
     Use this function to calculate the intrinsic value of a stock.
     """
-    # Estimate the future cash flows based on the growth rate
-    # print("free_cash_flow", free_cash_flow)
-    # print("growth_rate", growth_rate)
-    # print("num_years", num_years)
 
     cash_flows = [free_cash_flow * (1 + growth_rate) ** i for i in range(num_years)]
 

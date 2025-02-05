@@ -118,8 +118,7 @@ def run_hedge_fund(
                     "model_provider": model_provider,
                 },
             },
-            "metadata": {"show_reasoning": show_reasoning},
-        })
+        )
 
         decisions = parse_hedge_fund_response(final_state["messages"][-1].content)
         analyst_signals = final_state["data"]["analyst_signals"]
@@ -359,23 +358,23 @@ if __name__ == "__main__":
 
     # # CFD trading
     
-    if args.execute_trades and result.get('decisions'):
-        print("\nEnhancing trading decisions with position sizing and risk management...")
+    # if args.execute_trades and result.get('decisions'):
+    #     print("\nEnhancing trading decisions with position sizing and risk management...")
        
-        # Initialize clients
-        trading_client = TradingClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'), paper=True)
-        data_client = StockHistoricalDataClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'))
+    #     # Initialize clients
+    #     trading_client = TradingClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'), paper=True)
+    #     data_client = StockHistoricalDataClient(os.getenv('ALPACA_API_KEY'), os.getenv('ALPACA_API_SECRET'))
         
-        # Enhance decisions with position sizing and risk management
-        enhanced_decisions = enhance_trading_decisions(
-            result['decisions'],
-            trading_client,
-            data_client
-        )
+    #     # Enhance decisions with position sizing and risk management
+    #     enhanced_decisions = enhance_trading_decisions(
+    #         result['decisions'],
+    #         trading_client,
+    #         data_client
+    #     )
         
-        print("\nExecuting enhanced trades through Alpaca...")
-        trade_results = execute_trades(
-            enhanced_decisions,
-            fixed_amount=args.trade_amount,
-            leverage=args.leverage
-        )
+    #     print("\nExecuting enhanced trades through Alpaca...")
+    #     trade_results = execute_trades(
+    #         enhanced_decisions,
+    #         fixed_amount=args.trade_amount,
+    #         leverage=args.leverage
+    #     )

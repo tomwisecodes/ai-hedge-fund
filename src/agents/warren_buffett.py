@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 import json
 from typing_extensions import Literal
-from tools.api import get_financial_metrics, get_market_cap, search_line_items
+from tools.api import get_financial_metrics, get_market_cap
 from utils.llm import call_llm
 from utils.progress import progress
 
@@ -46,11 +46,12 @@ def warren_buffett_agent(state: AgentState):
                 "total_assets",
                 "total_liabilities",
             ],
-            end_date,
+            end_date, 
             period="ttm",
             limit=5,
         )
 
+    
         progress.update_status("warren_buffett_agent", ticker, "Getting market cap")
         # Get current market cap
         market_cap = get_market_cap(ticker, end_date)
@@ -233,6 +234,7 @@ def calculate_owner_earnings(financial_line_items: list) -> dict[str, any]:
 
     owner_earnings = net_income + depreciation - maintenance_capex
 
+    
     return {
         "owner_earnings": owner_earnings,
         "components": {"net_income": net_income, "depreciation": depreciation, "maintenance_capex": maintenance_capex},
@@ -242,23 +244,30 @@ def calculate_owner_earnings(financial_line_items: list) -> dict[str, any]:
 
 def calculate_intrinsic_value(financial_line_items: list) -> dict[str, any]:
     """Calculate intrinsic value using DCF with owner earnings."""
+    
     if not financial_line_items:
         return {"value": None, "details": ["Insufficient data for valuation"]}
-
     # Calculate owner earnings
+
+    
     earnings_data = calculate_owner_earnings(financial_line_items)
+    
     if not earnings_data["owner_earnings"]:
+        print("earnings_data", earnings_data)
+        print("No earnings data found")
         return {"value": None, "details": earnings_data["details"]}
 
     owner_earnings = earnings_data["owner_earnings"]
-
+    
     # Get current market data
     latest_financial_line_items = financial_line_items[0]
     shares_outstanding = latest_financial_line_items.outstanding_shares
 
     if not shares_outstanding:
+        
         return {"value": None, "details": ["Missing shares outstanding data"]}
 
+    
     # Buffett's DCF assumptions
     growth_rate = 0.05  
     discount_rate = 0.09
@@ -274,6 +283,9 @@ def calculate_intrinsic_value(financial_line_items: list) -> dict[str, any]:
 
     # Add terminal value
     terminal_value = (owner_earnings * (1 + growth_rate) ** projection_years * terminal_multiple) / (1 + discount_rate) ** projection_years
+
+    print("*********", future_value, terminal_value)
+
     intrinsic_value = future_value + terminal_value
 
     return {
