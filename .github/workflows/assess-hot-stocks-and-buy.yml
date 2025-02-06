@@ -2,7 +2,7 @@ name: Assess Hot Stocks and Buy/Sell
 
 on:
   schedule:
-    - cron: "0 12 * * *"  
+    - cron: "25 14,19 * * *"  
   workflow_dispatch:  
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
       - name: Run scraper
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          poetry run python src/db/stocks_from_db.py 
+          echo -e "a\n" | poetry run python src/main.py --execute-trades
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FINANCIAL_DATASETS_API_KEY: ${{ secrets.FINANCIAL_DATASETS_API_KEY }}

@@ -51,6 +51,15 @@ def warren_buffett_agent(state: AgentState):
             limit=5,
         )
 
+        # Handle financial line items being empty as its an ETF or similar by returning a neutral result
+        if not financial_line_items:
+            buffett_analysis[ticker] = {
+                "signal": "neutral",
+                "confidence": 0,
+                "reasoning": "Insufficient financial data for analysis",
+            }
+            continue
+
     
         progress.update_status("warren_buffett_agent", ticker, "Getting market cap")
         # Get current market cap
@@ -72,6 +81,7 @@ def warren_buffett_agent(state: AgentState):
 
         # Add margin of safety analysis if we have both intrinsic value and current price
         margin_of_safety = None
+        
         intrinsic_value = intrinsic_value_analysis["intrinsic_value"]
         if intrinsic_value and market_cap:
             margin_of_safety = (intrinsic_value - market_cap) / market_cap
@@ -284,7 +294,7 @@ def calculate_intrinsic_value(financial_line_items: list) -> dict[str, any]:
     # Add terminal value
     terminal_value = (owner_earnings * (1 + growth_rate) ** projection_years * terminal_multiple) / (1 + discount_rate) ** projection_years
 
-    print("*********", future_value, terminal_value)
+    
 
     intrinsic_value = future_value + terminal_value
 

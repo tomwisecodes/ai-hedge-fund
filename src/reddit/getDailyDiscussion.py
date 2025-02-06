@@ -127,6 +127,24 @@ async def get_daily_discussions(
         logger.error('Error:', error)
         raise
 
+
+async def get_last_10_discussion_ids(reddit: asyncpraw.Reddit) -> List[str]:
+    try:
+        # Get newest posts
+        wsb = await reddit.subreddit('wallstreetbets')
+        posts = [post async for post in wsb.new(limit=10)]
+        
+        daily_discussion_ids = []
+
+        for post in posts:
+            daily_discussion_ids.append(post.id)
+
+        return daily_discussion_ids
+
+    except Exception as error:
+        logger.error('Error:', error)
+        raise
+
 async def main():
     load_dotenv()  # Load environment variables
     
@@ -141,24 +159,36 @@ async def main():
         # Call the functions
         logger.info("Getting daily discussion...")
         discussion_id = await get_daily_discussion(reddit)
+        last_10_discussion_ids = await get_last_10_discussion_ids(reddit)
+        print("last_10_discussion_ids", last_10_discussion_ids)
+        arrayOfDiscussionIds = [discussion_id, *last_10_discussion_ids]    
+        
+        # Remove duplicates in the array
 
-        if discussion_id == 'No daily discussion found':
+        discussion_ids_set = set(arrayOfDiscussionIds)
+
+        logger.info(f"Daily discussion ID: {discussion_ids_set}")
+        if len(discussion_ids_set) == 0:
             error_msg = '❌ No daily discussion found. Exiting...'
             logger.error(error_msg)
             send_slack_message(error_msg)
             return
 
         logger.info(f"Daily discussion ID: {discussion_id}")
-
-        comments = await get_comments(discussion_id, reddit)
-        success_msg = f"✅ Reddit Script Complete!\nFound {len(comments)} comments\nDiscussion ID: {discussion_id}"
+        numberOfCommentsFounds = 0
+        for post_id in discussion_ids_set:
+            store_daily_discussion(supabase, post_id, 'Daily Discussion')
+            comments = await get_comments(post_id, reddit)
+            numberOfCommentsFounds += len(comments)
+            
+        success_msg = f"✅ Reddit Script Complete!\nFound {numberOfCommentsFounds} comments\nDiscussion ID: {discussion_id}"
         send_slack_message(success_msg)
-        logger.info(f"Found {len(comments)} comments in the daily discussion")   
+        logger.info(f"Found {numberOfCommentsFounds} comments in the daily discussion")   
 
     except Exception as e:
         error_msg = f"❌ Error in Reddit script: {str(e)}"
         logger.error(error_msg)
-        send_slack_message(error_msg)
+        # send_slack_message(error_msg)
         raise
     finally:
         await reddit.close()

@@ -59,7 +59,7 @@ def store_stock_record(supabase, ticker, name):
     except Exception as e:
         logger.error(f"Error storing stock: {e}")
 
-def get_hot_stocks(supabase, limit=60):
+def get_hot_stocks(supabase, limit=100):
     """Get the most mentioned stocks in the last 7 days"""
     try:
         response = supabase.table('stocks')\

@@ -6,16 +6,17 @@ import json
 
 ##### Risk Management Agent #####
 def risk_management_agent(state: AgentState):
-    """Controls position sizing based on real-world risk factors for multiple tickers."""
+    """Controls position sizing based on real-world risk factors and Alpaca account limits."""
     try:
         portfolio = state["data"]["portfolio"]
         data = state["data"]
         tickers = data["tickers"]
+        execute_trades = data.get("execute_trades", False)
     except KeyError as e:
         raise ValueError(f"Missing expected key in state data: {e}")
 
     risk_analysis = {}
-    current_prices = {}  # Store prices here to avoid redundant API calls
+    current_prices = {}
 
     for ticker in tickers:
         try:
@@ -32,30 +33,39 @@ def risk_management_agent(state: AgentState):
                 continue
 
             prices_df = prices_to_df(prices)
-            
-            progress.update_status("risk_management_agent", ticker, "Calculating position limits")
-
             current_price = prices_df["close"].iloc[-1]
             current_prices[ticker] = current_price
 
+            # Enhanced position limit calculation
             current_position_value = portfolio.get("cost_basis", {}).get(ticker, 0)
             total_portfolio_value = portfolio.get("cash", 0) + sum(
                 portfolio.get("cost_basis", {}).get(t, 0) for t in portfolio.get("cost_basis", {})
             )
 
-            position_limit = total_portfolio_value * 0.20
-            remaining_position_limit = position_limit - current_position_value
+            # Account for buying power if executing trades
+            if execute_trades:
+                buying_power = portfolio.get("buying_power", portfolio.get("cash", 0))
+                max_position = min(
+                    total_portfolio_value * 0.20,  # 20% portfolio limit
+                    buying_power * 0.95,  # 95% of buying power to leave margin
+                )
+            else:
+                max_position = total_portfolio_value * 0.20
+
+            remaining_position_limit = max_position - current_position_value
             max_position_size = min(remaining_position_limit, portfolio.get("cash", 0))
 
             risk_analysis[ticker] = {
                 "remaining_position_limit": float(max_position_size),
                 "current_price": float(current_price),
+                "max_shares": int(max_position_size / current_price) if current_price > 0 else 0,
                 "reasoning": {
                     "portfolio_value": float(total_portfolio_value),
                     "current_position": float(current_position_value),
-                    "position_limit": float(position_limit),
+                    "position_limit": float(max_position),
                     "remaining_limit": float(remaining_position_limit),
                     "available_cash": float(portfolio.get("cash", 0)),
+                    "buying_power": float(portfolio.get("buying_power", portfolio.get("cash", 0)))
                 },
             }
 

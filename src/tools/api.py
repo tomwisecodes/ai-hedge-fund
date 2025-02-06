@@ -292,8 +292,8 @@ def search_valuation_line_items(
 
                 period_end = period_balance.get("fiscalDateEnding")
                 
-                print(f"Processing period {i} starting from {period_end}")
-                print(f"First quarter depreciation value: {period_quarters_income[0].get('depreciationAndAmortization')}")
+                # print(f"Processing period {i} starting from {period_end}")
+                # print(f"First quarter depreciation value: {period_quarters_income[0].get('depreciationAndAmortization')}")
                 
                 # Calculate values for this period
                 free_cash_flow = calculate_ttm_value(period_quarters_cash, "operatingCashflow")
@@ -423,31 +423,40 @@ def interpolate_depreciation(quarterly_data: List[dict]) -> Optional[float]:
     
     return None
 
-def calculate_ttm_value_buff(quarterly_data: List[dict], field_name: str) -> Optional[float]:
-    """Calculate TTM value by summing last 4 quarters, with special handling for depreciation."""
+def calculate_ttm_value_buff(quarterly_data: List[dict], field_name: str) -> float:  # Changed return type
     if not quarterly_data or len(quarterly_data) < 4:
-        return None
+        return 0.0 if field_name == 'capitalExpenditures' else None
         
-    # Special handling for depreciation and amortization
     if field_name == 'depreciationAndAmortization':
         values = []
         first_quarter_value = safe_float_convert(quarterly_data[0].get(field_name))
         
-        # Only interpolate if first quarter is None
-        if first_quarter_value is None:
+        if first_quarter_value is not None:
+            values.append(first_quarter_value)
+        else:
             interpolated_value = interpolate_depreciation(quarterly_data)
             if interpolated_value is not None:
                 values.append(interpolated_value)
-                # Add the other quarters
-                for quarter in quarterly_data[1:4]:
-                    value = safe_float_convert(quarter.get(field_name))
-                    if value is None:
-                        return None
-                    values.append(value)
-                return sum(values)
-        return None
-    
-    # Standard handling for all other fields
+            else:
+                return None
+                
+        for quarter in quarterly_data[1:4]:
+            value = safe_float_convert(quarter.get(field_name))
+            if value is None:
+                return None
+            values.append(value)
+        return sum(values)
+
+    if field_name == 'capitalExpenditures':
+        values = []
+        for quarter in quarterly_data[:4]:
+            value = safe_float_convert(quarter.get(field_name))
+            if value is None:
+                value = 0.0  # Conservative fallback
+            values.append(value)
+        return sum(values)
+
+    # Standard handling for other fields
     values = []
     for quarter in quarterly_data[:4]:
         value = safe_float_convert(quarter.get(field_name))
@@ -495,29 +504,55 @@ def search_line_items_warren_buff(
         for i in range(min(limit, len(annual_balance))):
             period_data = annual_balance[i]
             period_end = period_data.get("fiscalDateEnding")
+            
+            depreciation_and_amortization = calculate_ttm_value_buff(
+                quarterly_income, "depreciationAndAmortization"
+            )
+            if depreciation_and_amortization is None:
+                print(f"Skipping period {period_end} due to missing depreciation data")
+                continue
+            capital_expenditure = calculate_ttm_value_buff(
+                quarterly_cash_flow, "capitalExpenditures"
+            )
+            if capital_expenditure is None:
+                print(f"Skipping period {period_end} due to missing capex data")
+                continue
+            net_income = calculate_ttm_value_buff(
+                quarterly_income, "netIncome"
+            )
+            if net_income is None:
+                print(f"Skipping period {period_end} due to missing net income data")
+                continue
+            total_assets = safe_float_convert(
+                period_data.get("totalAssets")
+            )
+            if total_assets is None:
+                print(f"Skipping period {period_end} due to missing total assets data")
+                continue
+            total_liabilities = safe_float_convert(
+                period_data.get("totalLiabilities")
+            )
+            if total_liabilities is None:
+                print(f"Skipping period {period_end} due to missing total liabilities data")
+                continue
+            outstanding_shares = safe_float_convert(
+                overview.get("SharesOutstanding")
+            )
+            if outstanding_shares is None:
+                print(f"Skipping period {period_end} due to missing shares outstanding data")
+                continue
+
 
             # Create LineItem for each period
             line_item = LineItem(
                 ticker=ticker,
                 report_period=period_end,
-                capital_expenditure=calculate_ttm_value_buff(
-                    quarterly_cash_flow, "capitalExpenditures"
-                ),
-                depreciation_and_amortization=calculate_ttm_value_buff(
-                    quarterly_income, "depreciationAndAmortization"
-                ),
-                net_income=calculate_ttm_value_buff(
-                    quarterly_income, "netIncome"
-                ),
-                outstanding_shares=safe_float_convert(
-                    overview.get("SharesOutstanding")
-                ),
-                total_assets=safe_float_convert(
-                    period_data.get("totalAssets")
-                ),
-                total_liabilities=safe_float_convert(
-                    period_data.get("totalLiabilities")
-                )
+                capital_expenditure=capital_expenditure,
+                depreciation_and_amortization=depreciation_and_amortization,
+                net_income=net_income,
+                outstanding_shares=outstanding_shares,
+                total_assets=total_assets,
+                total_liabilities=total_liabilities
             )
             
             results.append(line_item)
