@@ -10,6 +10,7 @@ import questionary
 import os
 from src.agents.execution_agent import execution_agent
 from src.db.functions_files.store_stock_record import get_hot_stocks
+from src.reddit.getDailyDiscussion import send_slack_message
 from src.traders.initialize_portfolio import initialize_portfolio
 from src.traders.trading_decisions import enhance_trading_decisions
 from supabase import create_client, Client
@@ -265,6 +266,9 @@ if __name__ == "__main__":
             "positions": {ticker: 0 for ticker in tickers}
         }
 
+    starting_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers: {', '.join(tickers)}"
+    send_slack_message(starting_msg)
+
     print(f"Portfolio: ${portfolio}")
     print("tickers: ", tickers)
     
@@ -365,6 +369,10 @@ if __name__ == "__main__":
         trading_client=trading_client if args.execute_trades else None
     )
 
+    # create a stringify of result to send in a slack message
+    result_str = json.dumps(result)
+    sucess_msg = f":bar_chart: :alien: Hedge fund bot completed for {len(tickers)} tickers: {', '.join(tickers)} with result: {result_str}"
+    send_slack_message(sucess_msg)
     print_trading_output(result)
 
 
