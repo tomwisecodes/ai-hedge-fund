@@ -106,7 +106,7 @@ def generate_trading_decision(
     model_provider: str,
     execute_trades: bool = False
 ) -> PortfolioManagerOutput:
-    """Generates trading decisions with optional Alpaca orders"""
+    """Generates trading decisions with optional Alpaca orders, including short positions"""
     try:     
         template = ChatPromptTemplate.from_messages([
             (
@@ -122,8 +122,8 @@ def generate_trading_decision(
                 * 80-90%: Use 75% of max position size
                 * >90%: Use full position size
                 - Only buy if you have available cash
-                - Only sell if you currently hold shares
-                - Sell quantity must be ≤ current position shares
+                - Only sell if you currently hold shares or to take a short position
+                - Sell quantity must be ≤ current position shares (unless shorting)
                 - Buy quantity must be ≤ max_shares for that ticker
                 """ + ("""
                 Live Trading Rules:
@@ -180,55 +180,41 @@ def generate_trading_decision(
             agent_name="portfolio_management_agent"
         )
 
-        if execute_trades:
-            for ticker, decision in result.decisions.items():
-                current_position = portfolio["positions"].get(ticker, 0)
-                
-                # Handle position closures
-                if current_position > 0:
-                    if decision.action == "sell" or decision.confidence <= 40:  # Force sell if confidence very low
-                        decision.action = "sell"
-                        decision.quantity = current_position
-                        order = AlpacaOrder(
-                            symbol=ticker,
-                            qty=current_position,
-                            side="sell",
-                            type="market",  # Use market orders for position closure
-                            time_in_force="day"
-                        )
-                        decision.order = order
-                        continue
+        for ticker, decision in result.decisions.items():
+            current_position = portfolio["positions"].get(ticker, 0)
 
-                # Regular trading logic
-                if (decision.action == "buy" and decision.confidence <= 60) or \
-                (decision.action == "sell" and decision.confidence <= 70):
+            # Handle position closures
+            if current_position > 0:
+                if decision.action == "sell" or decision.confidence <= 40:  # Force sell if confidence very low
+                    decision.quantity = min(decision.quantity, current_position)
+                    continue
+
+            # Enable shorting if no current position exists
+            if current_position == 0 and decision.action == "sell":
+                max_quantity = max_shares.get(ticker, 0)
+                confidence = decision.confidence
+
+                if confidence >= 70:  # Only allow shorting with high confidence
+                    if 70 <= confidence < 80:
+                        short_quantity = int(max_quantity * 0.25)
+                    elif 80 <= confidence < 90:
+                        short_quantity = int(max_quantity * 0.50)
+                    elif 90 <= confidence <= 100:
+                        short_quantity = int(max_quantity * 0.75)
+                    else:
+                        short_quantity = max_quantity
+
+                    decision.quantity = short_quantity
+                else:
                     decision.action = "hold"
                     decision.quantity = 0
                     continue
 
-                # Scale position size based on confidence for buys
-                if decision.action == "buy":
-                    price = current_prices.get(ticker, 0)
-                    max_quantity = max_shares.get(ticker, 0)
-                    confidence = decision.confidence
-                    
-                    if 60 < confidence <= 70:
-                        decision.quantity = min(decision.quantity, int(max_quantity * 0.25))
-                    elif 70 < confidence <= 80:
-                        decision.quantity = min(decision.quantity, int(max_quantity * 0.50))
-                    elif 80 < confidence <= 90:
-                        decision.quantity = min(decision.quantity, int(max_quantity * 0.75))
-                    else:
-                        decision.quantity = min(decision.quantity, max_quantity)
-
-                    order = AlpacaOrder(
-                        symbol=ticker,
-                        qty=decision.quantity,
-                        side=decision.action,
-                        type="market" if confidence >= 80 else "limit",
-                        limit_price=price * 0.99 if confidence < 80 else None
-                    )
-                    decision.order = order
+            # Regular trading logic for buys
+            if (decision.action == "buy" and decision.confidence <= 60) or \
+               (decision.action == "sell" and decision.confidence <= 70):
+                decision.action = "hold"
+                decision.quantity = 0
 
         return result
     except Exception as e:

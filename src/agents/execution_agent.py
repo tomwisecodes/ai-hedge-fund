@@ -19,7 +19,7 @@ def execution_agent(state: AgentState):
 
     try:
         for ticker, decision in trading_decisions.items():
-            print(f"&&&&&&&&&&&&&&&&&&&&&&&Executing trade for {decision}")
+            
             if not decision.order or decision.action == "hold":
                 progress.update_status("execution_agent", ticker, "Done")
                 continue
