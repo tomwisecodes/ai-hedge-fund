@@ -260,7 +260,6 @@ if __name__ == "__main__":
                 if ticker not in owned_tickers:
                     tickers.append(ticker)
             
-            tickers = ['LLY']
             portfolio = initialize_portfolio(trading_client, args.initial_cash)
         except Exception as e:
             print(f"Error fetching positions: {e}")
