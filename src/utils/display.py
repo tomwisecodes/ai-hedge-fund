@@ -57,6 +57,13 @@ def print_trading_output(result: dict) -> None:
         # Sort the signals according to the predefined order
         table_data = sort_analyst_signals(table_data)
 
+        if not table_data:
+            table_data = [[
+                f"{Fore.CYAN}No Analyst Data{Style.RESET_ALL}",
+                f"{Fore.YELLOW}N/A{Style.RESET_ALL}",
+                f"{Fore.YELLOW}0%{Style.RESET_ALL}"
+            ]]
+
         print(f"\n{Fore.WHITE}{Style.BRIGHT}ANALYST SIGNALS:{Style.RESET_ALL} [{Fore.CYAN}{ticker}{Style.RESET_ALL}]")
         print(
             tabulate(

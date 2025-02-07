@@ -58,14 +58,16 @@ def get_hot_stocks(supabase, limit=100):
             .order('mention_count_7d', desc=True)\
             .limit(limit)\
             .execute()
-        
         data = response.data
 
+
+        # print(f"data: {data}")
         # sort data by mention_count_7d   
         sorted_data = sorted(data, key=lambda x: x['mention_count_7d'], reverse=True)
-        # print(sorted_data)
-        # Just return tickers
-        return [stock['ticker'] for stock in sorted_data]
+        
+        orderd_stocks = [stock['ticker'] for stock in sorted_data]
+        
+        return orderd_stocks
 
     except Exception as e:
         logger.error(f"Error getting hot stocks: {e}")

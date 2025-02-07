@@ -1,3 +1,4 @@
+from asyncio.log import logger
 from alpaca.trading.requests import OrderRequest
 from alpaca.trading.requests import LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
@@ -18,23 +19,32 @@ def execution_agent(state: AgentState):
 
     try:
         for ticker, decision in trading_decisions.items():
-            
+            print(f"&&&&&&&&&&&&&&&&&&&&&&&Executing trade for {decision}")
             if not decision.order or decision.action == "hold":
+                progress.update_status("execution_agent", ticker, "Done")
                 continue
-
-            if decision.order.type == "limit" and decision.order.limit_price is None:
-                raise ValueError(f"Limit order for {decision.order.symbol} is missing a limit price.")
-
+        
             try:
                 progress.update_status("execution_agent", ticker, "Placing order")
+                limit_price = round(float(decision.order.limit_price), 2) if decision.order.limit_price else None
 
-                order_request = LimitOrderRequest(
-                    symbol=decision.order.symbol,
-                    qty=decision.order.qty,
-                    side=OrderSide(decision.order.side),
-                    time_in_force=TimeInForce(decision.order.time_in_force),
-                    limit_price=round(float(decision.order.limit_price), 2)
-                )
+                if decision.order.type == "market":
+                    order_request = OrderRequest(
+                        symbol=decision.order.symbol,
+                        qty=decision.order.qty,
+                        side=OrderSide(decision.order.side),
+                        time_in_force=TimeInForce(decision.order.time_in_force),
+                        type=OrderType.MARKET
+                    )
+                else:
+                    limit_price = round(float(decision.order.limit_price), 2)
+                    order_request = LimitOrderRequest(
+                        symbol=decision.order.symbol,
+                        qty=decision.order.qty,
+                        side=OrderSide(decision.order.side),
+                        time_in_force=TimeInForce(decision.order.time_in_force),
+                        limit_price=limit_price,
+                    )
 
                 order = trading_client.submit_order(order_request)
                 
@@ -44,6 +54,8 @@ def execution_agent(state: AgentState):
                     "filled_qty": order.filled_qty,
                     "filled_avg_price": order.filled_avg_price
                 }
+
+                progress.update_status("execution_agent", ticker, "Done")
                 
             except Exception as e:
                 print(f"Error executing trade for {ticker}: {e}")

@@ -250,10 +250,17 @@ if __name__ == "__main__":
             response = supabase.table("stocks").select("*").execute()
             response_data: List[StockEntry] = response.data
             db_tickers_hot = get_hot_stocks(supabase)
+
+            print("Hot stocks: ", db_tickers_hot)
+            print("Owned stocks: ", owned_tickers)    
+
+
+            tickers = owned_tickers.copy() 
+            for ticker in db_tickers_hot:
+                if ticker not in owned_tickers:
+                    tickers.append(ticker)
             
-            tickers = list(set(owned_tickers + db_tickers_hot))
-            # tickers = ['VST', "SHOP"]
-            print(f"Total unique tickers to process: {len(tickers)}")
+            tickers = ['LLY']
             portfolio = initialize_portfolio(trading_client, args.initial_cash)
         except Exception as e:
             print(f"Error fetching positions: {e}")
@@ -368,20 +375,20 @@ if __name__ == "__main__":
         execute_trades=args.execute_trades,
         trading_client=trading_client if args.execute_trades else None
     )
-
-    # create a stringify of result to send in a slack message
-    result_str = json.dumps(result)
-    sucess_msg = f":bar_chart: :alien: Hedge fund bot completed for {len(tickers)} tickers: {', '.join(tickers)} with result: {result_str}"
-    send_slack_message(sucess_msg)
+    
+    
     print_trading_output(result)
 
-
+    sucess_msg = f":bar_chart: :alien: Hedge fund bot completed for {len(tickers)} tickers: {', '.join(tickers)}"
+    send_slack_message(sucess_msg)
 
     if args.execute_trades and result.get('execution_results'):
         print("\nExecution Results:")
         for ticker, exec_result in result['execution_results'].items():
             status = exec_result['status']
             if status == 'success':
-                print(f"{ticker}: Order {exec_result['order_id']} filled {exec_result['filled_qty']} @ ${exec_result.get('filled_avg_price', 'N/A')}")
+                order_success_message = f"{ticker}: Order {exec_result['order_id']} filled {exec_result['filled_qty']} @ ${exec_result.get('filled_avg_price', 'N/A')}"
+                print(order_success_message)
+                send_slack_message(order_success_message)
             else:
                 print(f"{ticker}: Failed - {exec_result.get('error', 'Unknown error')}")
