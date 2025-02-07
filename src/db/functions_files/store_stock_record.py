@@ -34,16 +34,7 @@ def store_stock_record(supabase, ticker, name):
                 'created_at': now.isoformat(),
                 'mention_count_7d': 1
             })
-        else:
-            # Count mentions in last 7 days
-            recent_mentions = supabase.table('stock_mentions')\
-                .select('count')\
-                .eq('ticker', ticker)\
-                .gte('mentioned_at', seven_days_ago)\
-                .execute()
-            
-            # Add 1 to include the current mention
-            record['mention_count_7d'] = len(recent_mentions.data) + 1
+        
 
         # Store the record
         supabase.table('stocks').upsert(record).execute()
