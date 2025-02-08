@@ -1,8 +1,3 @@
-import subprocess
-import requests
-import json
-import time
-from src.db.functions import get_hot_stocks
 from src.reddit.getDailyDiscussion import send_slack_message
 from supabase import create_client, Client
 from typing import TypedDict, List
@@ -10,8 +5,6 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 from pathlib import Path
-from src.utils.ticker_utils import get_sec_tickers
-from alpaca.trading.client import TradingClient
 from datetime import datetime, timedelta
 
 # Get project root directory
@@ -23,10 +16,6 @@ load_dotenv()
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_SERVICE_KEY")
 
-# Initialize Alpaca client
-alpaca_api_key = os.getenv('ALPACA_API_KEY')
-alpaca_api_secret = os.getenv('ALPACA_API_SECRET')
-trading_client = TradingClient(alpaca_api_key, alpaca_api_secret, paper=True)
 
 supabase: Client = create_client(url, key)
 
