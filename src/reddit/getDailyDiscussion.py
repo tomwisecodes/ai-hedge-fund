@@ -177,6 +177,8 @@ async def main():
         logger.info(f"Daily discussion ID: {discussion_id}")
         numberOfCommentsFounds = 0
         for post_id in discussion_ids_set:
+            if post_id == 'No daily discussion found': 
+                continue
             store_daily_discussion(supabase, post_id, 'Daily Discussion')
             comments = await get_comments(post_id, reddit)
             numberOfCommentsFounds += len(comments)
