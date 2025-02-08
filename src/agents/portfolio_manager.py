@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Optional
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -96,6 +97,108 @@ def portfolio_management_agent(state: AgentState):
         "metadata": state["metadata"]
     }
 
+def print_debug(msg):
+    return
+    print(f"$$$$$ {msg}")
+
+def calculate_signal_confidence(signals: dict) -> tuple[float, str]:
+    """
+    Calculate weighted confidence score from signals.
+    Handles any combination of available agents flexibly.
+    Returns (confidence_score, dominant_direction)
+    """
+    # Base weights if all agents are present
+    base_weights = {
+        'fundamentals': 0.24,
+        'technical_analysis': 0.23,
+        'valuation': 0.23,
+        'warren_buffett': 0.15,
+        'sentiment': 0.15
+    }
+    
+    print_debug("Starting signal confidence calculation")
+    print_debug(f"Input signals: {signals}")
+    
+    # Get active agents (exclude risk management)
+    active_agents = {k: v for k, v in signals.items() if k.lower() != 'risk_management_agent'}
+    
+    # Dynamically adjust weights based on which agents are present
+    total_weight = sum(base_weights[k.lower().replace('_agent', '').replace('analyst', 'analysis')] 
+                      for k in active_agents.keys() 
+                      if k.lower().replace('_agent', '').replace('analyst', 'analysis') in base_weights)
+    
+    weights = {k: v/total_weight for k, v in base_weights.items()} if total_weight > 0 else base_weights
+    print_debug(f"Adjusted weights for available agents: {weights}")
+    
+    weighted_bullish = 0.0
+    weighted_bearish = 0.0
+    active_signals = 0  # Only count non-neutral signals
+    available_signals = len(active_agents)  # Total available agents
+    
+    print_debug("Processing each signal:")
+    for signal_type, signal_data in active_agents.items():
+        print_debug(f"\nProcessing signal: {signal_type}")
+        print_debug(f"Signal data: {signal_data}")
+        
+        # Extract signal and confidence
+        direction = signal_data.get('signal', '').upper()
+        print_debug(f"Extracted direction: {direction}")
+        
+        try:
+            confidence = float(signal_data.get('confidence', 0))
+            print_debug(f"Parsed confidence: {confidence}")
+        except (ValueError, AttributeError) as e:
+            print_debug(f"Error parsing confidence: {e}")
+            confidence = 0.0
+        
+        # Process non-neutral signals
+        if direction and direction != 'NEUTRAL':
+            active_signals += 1
+            # Normalize agent name to match weight keys
+            normalized_type = (signal_type.lower()
+                             .replace('_agent', '')
+                             .replace('analyst', 'analysis')
+                             .replace(' ', '_'))
+            weight = weights.get(normalized_type, 0)
+            print_debug(f"Signal type '{signal_type}' normalized to '{normalized_type}', weight: {weight}")
+            
+            weighted_value = confidence * weight
+            if direction == 'BULLISH':
+                weighted_bullish += weighted_value
+                print_debug(f"Added to bullish: {confidence}% * {weight} = {weighted_value}%")
+            elif direction == 'BEARISH':
+                weighted_bearish += weighted_value
+                print_debug(f"Added to bearish: {confidence}% * {weight} = {weighted_value}%")
+        else:
+            print_debug(f"Skipping neutral or empty signal")
+    
+    print_debug(f"\nSignal summary:")
+    print_debug(f"Active (non-neutral) signals: {active_signals}")
+    print_debug(f"Total available signals: {available_signals}")
+    print_debug(f"Total weighted bullish: {weighted_bullish}%")
+    print_debug(f"Total weighted bearish: {weighted_bearish}%")
+    
+    # Determine dominant direction
+    if weighted_bearish > weighted_bullish:
+        confidence = weighted_bearish
+        direction = 'bearish'
+    else:
+        confidence = weighted_bullish
+        direction = 'bullish'
+    
+    print_debug(f"Dominant direction: {direction}")
+    print_debug(f"Base confidence: {confidence}%")
+    
+    # Scale confidence based on signal participation
+    # Instead of requiring 3 signals, we scale based on what proportion of available signals are active
+    if active_signals < available_signals:
+        original_confidence = confidence
+        confidence *= (active_signals / available_signals)
+        print_debug(f"Adjusted confidence based on signal participation: {original_confidence}% * ({active_signals}/{available_signals}) = {confidence}%")
+    
+    print_debug(f"Final output - Direction: {direction}, Confidence: {confidence}%")
+    return confidence, direction
+
 def generate_trading_decision(
     tickers: list[str],
     signals_by_ticker: dict[str, dict],
@@ -106,53 +209,67 @@ def generate_trading_decision(
     model_provider: str,
     execute_trades: bool = False
 ) -> PortfolioManagerOutput:
-    """Generates trading decisions with optional Alpaca orders, including short positions"""
-    try:     
+    """Generates trading decisions with optional Alpaca orders"""
+    try:
+        print_debug("Starting trading decision generation")
+        print_debug(f"Processing tickers: {tickers}")
+        print_debug(f"Current prices: {current_prices}")
+        print_debug(f"Max shares: {max_shares}")
+        print_debug(f"Portfolio: {portfolio}")
+        
+        # Pre-calculate confidence scores and create analysis summary
+        analysis_by_ticker = {}
+        for ticker, signals in signals_by_ticker.items():
+            print_debug(f"\nAnalyzing ticker: {ticker}")
+            print_debug(f"Signals for {ticker}: {signals}")
+            
+            confidence, direction = calculate_signal_confidence(signals)
+            current_position = portfolio["positions"].get(ticker, 0)
+            
+            analysis = {
+                "confidence": confidence,
+                "direction": direction,
+                "current_position": current_position,
+                "current_price": current_prices[ticker],
+                "max_shares": max_shares[ticker]
+            }
+            analysis_by_ticker[ticker] = analysis
+            print_debug(f"Analysis for {ticker}: {analysis}")
+
+        print_debug("Preparing LLM prompt")
         template = ChatPromptTemplate.from_messages([
             (
                 "system",
-                """You are a portfolio manager making final trading decisions based on multiple tickers.
+                """You are a sophisticated portfolio manager making final trading decisions based on pre-calculated signal analysis.
 
                 Trading Rules:
-                - Only execute buy orders if confidence > 60%
-                - Only execute sell orders if confidence > 70%
-                - For buys, scale position size with confidence:
-                * 60-70%: Use 25% of max position size
-                * 70-80%: Use 50% of max position size
-                * 80-90%: Use 75% of max position size
-                * >90%: Use full position size
-                - Only buy if you have available cash
-                - Only sell if you currently hold shares or to take a short position
-                - Sell quantity must be ≤ current position shares (unless shorting)
-                - Buy quantity must be ≤ max_shares for that ticker
-                """ + ("""
-                Live Trading Rules:
-                - Use market orders for confidence >= 80%
-                - Use limit orders for confidence < 80%
-                - Set buy limits 1% below market
-                - Set sell limits 1% above market
-                """ if execute_trades else "")
-            ),
-            (
-                "human",
-                """Based on the team's analysis, make your trading decisions for each ticker.
+                IMPORTANT: USE THE HIGHER OF BULLISH OR BEARISH CONFIDENCE!
+                
+                - For new long positions (bullish direction):
+                  * Require minimum 60% bullish confidence
+                  * 60-70%: Buy 25% of max position
+                  * 70-80%: Buy 50% of max position
+                  * 80-90%: Buy 75% of max position
+                  * >90%: Buy full position
 
-                Here are the signals by ticker:
-                {signals_by_ticker}
+                - For selling existing positions (bearish direction):
+                  * Require minimum 70% bearish confidence
+                  * 70-80%: Sell 25% of position
+                  * 80-90%: Sell 50% of position
+                  * 90-95%: Sell 75% of position
+                  * >95%: Sell full position
 
-                Current Prices:
-                {current_prices}
+                - For new short positions (bearish direction with no current position):
+                  * Require minimum 80% bearish confidence
+                  * 80-85%: Short 25% of max size
+                  * 85-90%: Short 50% of max size
+                  * 90-95%: Short 75% of max size
+                  * >95%: Short full size
 
-                Maximum Shares Allowed For Purchases:
-                {max_shares}
-
-                Portfolio Cash: {portfolio_cash}
-                Current Positions: {portfolio_positions}
-
-                Output strictly in JSON with the following structure:
+                Return decisions in JSON matching exactly this structure:
                 {{
                     "decisions": {{
-                        "TICKER1": {{
+                        "TICKER": {{
                             "action": "buy/sell/hold",
                             "quantity": integer,
                             "confidence": float,
@@ -161,17 +278,24 @@ def generate_trading_decision(
                     }}
                 }}
                 """
+            ),
+            (
+                "human",
+                """Make trading decisions based on the pre-calculated analysis:
+                {analysis_by_ticker}
+
+                Portfolio Cash: {portfolio_cash}
+                """
             )
         ])
 
         prompt = template.invoke({
-            "signals_by_ticker": json.dumps(signals_by_ticker, indent=2),
-            "current_prices": json.dumps(current_prices, indent=2),
-            "max_shares": json.dumps(max_shares, indent=2),
-            "portfolio_cash": f"{portfolio['cash']:.2f}",
-            "portfolio_positions": json.dumps(portfolio["positions"], indent=2)
+            "analysis_by_ticker": json.dumps(analysis_by_ticker, indent=2),
+            "portfolio_cash": f"{portfolio['cash']:.2f}"
         })
+        print_debug(f"Generated prompt: {prompt}")
 
+        print_debug("Calling LLM")
         result = call_llm(
             prompt=prompt,
             model_name=model_name,
@@ -179,43 +303,44 @@ def generate_trading_decision(
             pydantic_model=PortfolioManagerOutput,
             agent_name="portfolio_management_agent"
         )
+        print_debug(f"LLM response: {result}")
 
-        for ticker, decision in result.decisions.items():
-            current_position = portfolio["positions"].get(ticker, 0)
-
-            # Handle position closures
-            if current_position > 0:
-                if decision.action == "sell" or decision.confidence <= 40:  # Force sell if confidence very low
-                    decision.quantity = min(decision.quantity, current_position)
-                    continue
-
-            # Enable shorting if no current position exists
-            if current_position == 0 and decision.action == "sell":
-                max_quantity = max_shares.get(ticker, 0)
-                confidence = decision.confidence
-
-                if confidence >= 70:  # Only allow shorting with high confidence
-                    if 70 <= confidence < 80:
-                        short_quantity = int(max_quantity * 0.25)
-                    elif 80 <= confidence < 90:
-                        short_quantity = int(max_quantity * 0.50)
-                    elif 90 <= confidence <= 100:
-                        short_quantity = int(max_quantity * 0.75)
-                    else:
-                        short_quantity = max_quantity
-
-                    decision.quantity = short_quantity
+        # Add order details if executing trades
+        if execute_trades:
+            print_debug("Processing trade execution details")
+            for ticker, decision in result.decisions.items():
+                print_debug(f"Processing order for {ticker}: {decision}")
+                if decision.action in ["buy", "sell"] and decision.quantity > 0:
+                    current_price = current_prices.get(ticker, 0)
+                    
+                    # Determine order type based on confidence
+                    order_type = "market" if decision.confidence >= 80 else "limit"
+                    print_debug(f"Selected order type: {order_type}")
+                    
+                    # Create order
+                    decision.order = {
+                        "type": order_type,
+                        "symbol": ticker,
+                        "qty": decision.quantity,
+                        "side": decision.action,
+                        "time_in_force": "day"
+                    }
+                    
+                    if order_type == "limit":
+                        limit_price = (
+                            round(current_price * 0.99, 2) if decision.action == "buy"
+                            else round(current_price * 1.01, 2)
+                        )
+                        decision.order["limit_price"] = limit_price
+                        print_debug(f"Added limit price: {limit_price}")
                 else:
-                    decision.action = "hold"
-                    decision.quantity = 0
-                    continue
+                    decision.order = None
+                    print_debug("No order needed")
 
-            # Regular trading logic for buys
-            if (decision.action == "buy" and decision.confidence <= 60) or \
-               (decision.action == "sell" and decision.confidence <= 70):
-                decision.action = "hold"
-                decision.quantity = 0
-
+        print_debug("Trading decision generation complete")
         return result
+        
     except Exception as e:
+        print_debug(f"ERROR: {str(e)}")
+        print_debug(f"ERROR TRACEBACK: {traceback.format_exc()}")
         raise ValueError(f"Error generating trading decisions: {e}")

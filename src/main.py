@@ -259,7 +259,8 @@ if __name__ == "__main__":
             for ticker in db_tickers_hot:
                 if ticker not in owned_tickers:
                     tickers.append(ticker)
-            
+    
+                    
             portfolio = initialize_portfolio(trading_client, args.initial_cash)
         except Exception as e:
             print(f"Error fetching positions: {e}")
@@ -272,8 +273,8 @@ if __name__ == "__main__":
             "positions": {ticker: 0 for ticker in tickers}
         }
 
-    starting_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers: {', '.join(tickers)}"
-    send_slack_message(starting_msg)
+    # starting_msg = f":bar_chart: :alien: Starting hedge fund bot for {len(tickers)} tickers: {', '.join(tickers)}"
+    # send_slack_message(starting_msg)
 
     print(f"Portfolio: ${portfolio}")
     print("tickers: ", tickers)
@@ -378,8 +379,8 @@ if __name__ == "__main__":
     
     print_trading_output(result)
 
-    sucess_msg = f":bar_chart: :alien: Hedge fund bot completed for {len(tickers)} tickers: {', '.join(tickers)}"
-    send_slack_message(sucess_msg)
+    # sucess_msg = f":bar_chart: :alien: Hedge fund bot completed for {len(tickers)} tickers: {', '.join(tickers)}"
+    # send_slack_message(sucess_msg)
 
     if args.execute_trades and result.get('execution_results'):
         print("\nExecution Results:")
@@ -387,7 +388,7 @@ if __name__ == "__main__":
             status = exec_result['status']
             if status == 'success':
                 order_success_message = f"{ticker}: Order {exec_result['order_id']} filled {exec_result['filled_qty']} @ ${exec_result.get('filled_avg_price', 'N/A')}"
-                print(order_success_message)
-                send_slack_message(order_success_message)
+                # print(order_success_message)
+                # send_slack_message(order_success_message)
             else:
                 print(f"{ticker}: Failed - {exec_result.get('error', 'Unknown error')}")

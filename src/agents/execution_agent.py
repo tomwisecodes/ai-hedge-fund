@@ -19,30 +19,32 @@ def execution_agent(state: AgentState):
 
     try:
         for ticker, decision in trading_decisions.items():
-            
+            print(f"&&&&&&&&&&&&&&&&&&&&&&&Executing trade for {decision}")
             if not decision.order or decision.action == "hold":
                 progress.update_status("execution_agent", ticker, "Done")
                 continue
         
             try:
                 progress.update_status("execution_agent", ticker, "Placing order")
-                limit_price = round(float(decision.order.limit_price), 2) if decision.order.limit_price else None
 
-                if decision.order.type == "market":
+                if decision.order['type'] == "market":
+                    print(f"££££££££££", decision.order)   
                     order_request = OrderRequest(
-                        symbol=decision.order.symbol,
-                        qty=decision.order.qty,
-                        side=OrderSide(decision.order.side),
-                        time_in_force=TimeInForce(decision.order.time_in_force),
+                        symbol=decision.order['symbol'],
+                        qty=decision.order['qty'],
+                        side=OrderSide(decision.order['side']),
+                        time_in_force=TimeInForce(decision.order['time_in_force']),
                         type=OrderType.MARKET
                     )
                 else:
-                    limit_price = round(float(decision.order.limit_price), 2)
+                    print(f"%%%%%%%", decision.order)          
+
+                    limit_price = round(float(decision.order['limit_price']), 2) if decision.order['limit_price'] else None
                     order_request = LimitOrderRequest(
-                        symbol=decision.order.symbol,
-                        qty=decision.order.qty,
-                        side=OrderSide(decision.order.side),
-                        time_in_force=TimeInForce(decision.order.time_in_force),
+                        symbol=decision.order['symbol'],
+                        qty=decision.order['qty'],
+                        side=OrderSide(decision.order['side']),
+                        time_in_force=TimeInForce(decision.order['time_in_force']),
                         limit_price=limit_price,
                     )
 
