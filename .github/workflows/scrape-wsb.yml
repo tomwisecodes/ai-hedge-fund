@@ -2,10 +2,10 @@ name: Scrape WSB daily discussion thread
 
 on:
   schedule:
-    - cron: "0 1 * * *"  
-    - cron: "0 9 * * *"  
+    - cron: "0 1 * * *"
+    - cron: "0 9 * * *"
     - cron: "0 17 * * *"
-  workflow_dispatch:  
+  workflow_dispatch:
 
 jobs:
   trade:
@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
-          
+
       - name: Run scraper
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
@@ -48,3 +48,12 @@ jobs:
           REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+
+      - name: Count hot stocks
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          poetry run python src/db/count_hot_stocks.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

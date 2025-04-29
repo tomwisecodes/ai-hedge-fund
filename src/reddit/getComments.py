@@ -134,31 +134,46 @@ async def grab_set_number_of_comments(
     # Set a reasonable limit for comment fetching
     logger.info("Starting to replace MoreComments objects...")
     try:
-        # Only replace up to 10 MoreComments objects, with a minimum score of 5
-        await submission.comments.replace_more(limit=10, threshold=5)
+        # Replace more MoreComments objects to get deeper comment threads
+        # Increase limit to 20 to get more comments, with a threshold of 2 to get less popular comments
+        await submission.comments.replace_more(limit=20, threshold=2)
         logger.info("Finished replacing MoreComments")
     except Exception as e:
         logger.error(f"Error replacing MoreComments: {e}")
     
-    # Get top-level comments only
-    logger.info("Getting comments...")
+    # Get all comments recursively
+    logger.info("Getting comments recursively...")
     try:
         all_comments = []
-        for top_comment in submission.comments:
-            if hasattr(top_comment, 'body'):  
-                all_comments.append(top_comment)
-                # Get replies
-                if hasattr(top_comment, 'replies'):
-                    for reply in top_comment.replies.list():
-                        if hasattr(reply, 'body'):
-                            all_comments.append(reply)
         
-
-        first_comment = all_comments[0].body
-        logger.info(f"First comment: {first_comment[:100]}...")  
-        logger.info(f"Found {len(all_comments)} comments")
+        # Helper function to recursively collect comments and their replies
+        def collect_comments_recursively(comment_forest):
+            for comment in comment_forest:
+                if hasattr(comment, 'body'):
+                    all_comments.append(comment)
+                    if hasattr(comment, 'replies') and len(comment.replies) > 0:
+                        collect_comments_recursively(comment.replies)
         
-        # Filter out existing comments
+        # Start collection from top-level comments
+        collect_comments_recursively(submission.comments)
+        
+        if all_comments:
+            first_comment = all_comments[0].body
+            logger.info(f"First comment: {first_comment[:100]}...")  
+        logger.info(f"Found {len(all_comments)} comments total")
+        
+        # Check for existing comment IDs in the database if none were provided
+        if not existing_comment_ids:
+            try:
+                # Fetch all comment IDs for this post from the database
+                response = supabase.table('reddit_comments').select('id').eq('postId', post_id).execute()
+                if response.data:
+                    existing_comment_ids = [comment['id'] for comment in response.data]
+                    logger.info(f"Found {len(existing_comment_ids)} existing comment IDs in database")
+            except Exception as e:
+                logger.error(f"Error fetching existing comments: {e}")
+        
+        # Filter out existing comments to avoid duplicates
         filtered_comments = [
             comment for comment in all_comments 
             if comment.id not in existing_comment_ids

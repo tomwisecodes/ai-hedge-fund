@@ -42,7 +42,7 @@ class DiscussionPost(TypedDict):
     title: str
 
 def store_daily_discussion(supabase, post_id, title):
-    """Store a single daily discussion post"""
+    """Store a reddit post"""
     try:
         record = {
             'id': post_id,
@@ -51,9 +51,9 @@ def store_daily_discussion(supabase, post_id, title):
             'title': title
         }
         supabase.table('reddit_posts').upsert(record).execute()
-        logger.info(f"Stored daily discussion: {post_id}")
+        logger.info(f"Stored post: {post_id} - {title[:30]}...")
     except Exception as e:
-        logger.error(f"Error storing daily discussion: {e}")
+        logger.error(f"Error storing post: {e}")
 
 async def get_daily_discussion(reddit: asyncpraw.Reddit) -> str:
     try:
@@ -128,22 +128,44 @@ async def get_daily_discussions(
         raise
 
 
-async def get_last_10_discussion_ids(reddit: asyncpraw.Reddit) -> List[str]:
+async def get_last_20_discussion_ids(reddit: asyncpraw.Reddit) -> List[str]:
     try:
-        # Get newest posts
+        # Get newest posts - changing to 20 posts
         wsb = await reddit.subreddit('wallstreetbets')
-        posts = [post async for post in wsb.new(limit=10)]
+        posts = [post async for post in wsb.new(limit=20)]
         
-        daily_discussion_ids = []
+        discussion_ids = []
 
         for post in posts:
-            daily_discussion_ids.append(post.id)
+            discussion_ids.append(post.id)
 
-        return daily_discussion_ids
+        return discussion_ids
 
     except Exception as error:
         logger.error('Error:', error)
         raise
+
+async def get_pinned_posts(reddit: asyncpraw.Reddit) -> List[str]:
+    """Get all pinned/stickied posts from WSB"""
+    try:
+        wsb = await reddit.subreddit('wallstreetbets')
+        pinned_ids = []
+        
+        # Try to get both stickied posts (there can be up to 2)
+        for i in range(1, 3):
+            try:
+                sticky = await wsb.sticky(number=i)
+                pinned_ids.append(sticky.id)
+                logger.info(f"Found pinned post: {sticky.title}")
+            except:
+                # No more stickies found
+                break
+                
+        return pinned_ids
+        
+    except Exception as error:
+        logger.error(f'Error getting pinned posts: {error}')
+        return []
 
 async def main():
     load_dotenv()  # Load environment variables
@@ -156,41 +178,63 @@ async def main():
     )
     
     try:
-        # Call the functions
+        # Get daily discussion (prioritize stickied ones)
         logger.info("Getting daily discussion...")
         discussion_id = await get_daily_discussion(reddit)
-        last_10_discussion_ids = await get_last_10_discussion_ids(reddit)
-        print("last_10_discussion_ids", last_10_discussion_ids)
-        arrayOfDiscussionIds = [discussion_id, *last_10_discussion_ids]    
         
-        # Remove duplicates in the array
-
-        discussion_ids_set = set(arrayOfDiscussionIds)
-
-        logger.info(f"Daily discussion ID: {discussion_ids_set}")
-        if len(discussion_ids_set) == 0:
-            error_msg = '❌ No daily discussion found. Exiting...'
+        # Get pinned posts
+        pinned_post_ids = await get_pinned_posts(reddit)
+        
+        # Get the last 20 posts
+        last_20_discussion_ids = await get_last_20_discussion_ids(reddit)
+        
+        # Combine all IDs, prioritizing pinned posts and daily discussion
+        all_post_ids = []
+        
+        # First add daily discussion if found
+        if discussion_id and discussion_id != 'No daily discussion found':
+            all_post_ids.append(discussion_id)
+            
+        # Then add all pinned posts
+        all_post_ids.extend(pinned_post_ids)
+        
+        # Finally add the most recent posts
+        all_post_ids.extend(last_20_discussion_ids)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_post_ids = [x for x in all_post_ids if not (x in seen or seen.add(x))]
+        
+        logger.info(f"Collected post IDs: {unique_post_ids}")
+        
+        if not unique_post_ids:
+            error_msg = '❌ No posts found. Exiting...'
             logger.error(error_msg)
             send_slack_message(error_msg)
             return
 
-        logger.info(f"Daily discussion ID: {discussion_id}")
+        # Process all posts
         numberOfCommentsFounds = 0
-        for post_id in discussion_ids_set:
+        for post_id in unique_post_ids:
             if post_id == 'No daily discussion found': 
                 continue
-            store_daily_discussion(supabase, post_id, 'Daily Discussion')
+                
+            # Store post in database
+            submission = await reddit.submission(id=post_id)
+            store_daily_discussion(supabase, post_id, submission.title)
+            
+            # Get and process comments
             comments = await get_comments(post_id, reddit)
             numberOfCommentsFounds += len(comments)
             
-        success_msg = f"✅ Reddit Script Complete!\nFound {numberOfCommentsFounds} comments\nDiscussion ID: {discussion_id}"
+        success_msg = f"✅ Reddit Script Complete!\nFound {numberOfCommentsFounds} comments\nProcessed {len(unique_post_ids)} posts"
         send_slack_message(success_msg)
-        logger.info(f"Found {numberOfCommentsFounds} comments in the daily discussion")   
+        logger.info(f"Found {numberOfCommentsFounds} comments across {len(unique_post_ids)} posts")   
 
     except Exception as e:
         error_msg = f"❌ Error in Reddit script: {str(e)}"
         logger.error(error_msg)
-        # send_slack_message(error_msg)
+        send_slack_message(error_msg)
         raise
     finally:
         await reddit.close()
