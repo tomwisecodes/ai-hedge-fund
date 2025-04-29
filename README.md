@@ -1,6 +1,6 @@
 # AI Hedge Fund
 
-This is a proof of concept for an AI-powered hedge fund.  The goal of this project is to explore the use of AI to make trading decisions.  This project is for **educational** purposes only and is not intended for real trading or investment.
+This is a proof of concept for an AI-powered hedge fund. The goal of this project is to explore the use of AI to make trading decisions. This project is for **educational** purposes only and is not intended for real trading or investment.
 
 This system employs several agents working together:
 
@@ -11,7 +11,7 @@ This system employs several agents working together:
 5. Warren Buffett Agent - Uses Warren Buffett's principles to generate trading signals
 6. Risk Manager - Calculates risk metrics and sets position limits
 7. Portfolio Manager - Makes final trading decisions and generates orders
-   
+
 <img width="1060" alt="Screenshot 2025-01-03 at 5 39 25 PM" src="https://github.com/user-attachments/assets/4611aace-27d0-43b2-9a70-385b40336e3f" />
 
 **Note**: the system simulates trading decisions, it does not actually trade.
@@ -31,6 +31,7 @@ This project is for **educational and research purposes only**.
 By using this software, you agree to use it solely for learning purposes.
 
 ## Table of Contents
+
 - [Setup](#setup)
 - [Usage](#usage)
   - [Running the Hedge Fund](#running-the-hedge-fund)
@@ -43,28 +44,33 @@ By using this software, you agree to use it solely for learning purposes.
 ## Setup
 
 Clone the repository:
+
 ```bash
 git clone https://github.com/virattt/ai-hedge-fund.git
 cd ai-hedge-fund
 ```
 
 1. Install Poetry (if not already installed):
+
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
 ```
 
 2. Install dependencies:
+
 ```bash
 poetry install
 ```
 
 3. Set up your environment variables:
+
 ```bash
 # Create .env file for your API keys
 cp .env.example .env
 ```
 
 4. Set your API keys:
+
 ```bash
 # For running LLMs hosted by openai (gpt-4o, gpt-4o-mini, etc.)
 # Get your OpenAI API key from https://platform.openai.com/
@@ -79,7 +85,7 @@ GROQ_API_KEY=your-groq-api-key
 FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
 ```
 
-**Important**: You must set `OPENAI_API_KEY`, `GROQ_API_KEY`, or `ANTHROPIC_API_KEY` for the hedge fund to work.  If you want to use LLMs from all providers, you will need to set all API keys.
+**Important**: You must set `OPENAI_API_KEY`, `GROQ_API_KEY`, or `ANTHROPIC_API_KEY` for the hedge fund to work. If you want to use LLMs from all providers, you will need to set all API keys.
 
 Financial data for AAPL, GOOGL, MSFT, NVDA, and TSLA is free and does not require an API key.
 
@@ -88,6 +94,7 @@ For any other ticker, you will need to set the `FINANCIAL_DATASETS_API_KEY` in t
 ## Usage
 
 ### Running the Hedge Fund
+
 ```bash
 poetry run python src/main.py --ticker AAPL,MSFT,NVDA
 ```
@@ -100,10 +107,11 @@ You can also specify a `--show-reasoning` flag to print the reasoning of each ag
 ```bash
 poetry run python src/main.py --ticker AAPL,MSFT,NVDA --show-reasoning
 ```
+
 You can optionally specify the start and end dates to make decisions for a specific time period.
 
 ```bash
-poetry run python src/main.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01 
+poetry run python src/main.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01
 ```
 
 ### Running the Backtester
@@ -124,7 +132,8 @@ poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA --start-date 2024-01
 poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA --start-date 2025-01-01 --end-date 2025-01-26
 ```
 
-## Project Structure 
+## Project Structure
+
 ```
 ai-hedge-fund/
 ├── src/
@@ -152,7 +161,7 @@ ai-hedge-fund/
 4. Push to the branch
 5. Create a Pull Request
 
-**Important**: Please keep your pull requests small and focused.  This will make it easier to review and merge.
+**Important**: Please keep your pull requests small and focused. This will make it easier to review and merge.
 
 ## Feature Requests
 
