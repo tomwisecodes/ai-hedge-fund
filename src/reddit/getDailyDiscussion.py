@@ -207,7 +207,6 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
         unique_post_ids = [x for x in all_post_ids if not (x in seen or seen.add(x))]
         
         logger.info(f"Collected {len(unique_post_ids)} post IDs from {subreddit_name}")
-        send_slack_message(f"📝 Found {len(unique_post_ids)} posts to process in r/{subreddit_name}")
         
         if not unique_post_ids:
             logger.warning(f"No posts found in {subreddit_name}")
@@ -218,6 +217,7 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
         numberOfCommentsFounds = 0
         total_ticker_mentions = 0
         processed_posts = 0
+        post_details = []
         
         for post_id in unique_post_ids:
             if post_id == 'No daily discussion found': 
@@ -237,19 +237,17 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
             for comment in comments:
                 post_tickers.update(comment.get('tickers', []))
             
+            # Collect data for this post
+            post_details.append({
+                'title': submission.title[:50] + ('...' if len(submission.title) > 50 else ''),
+                'comments': len(comments),
+                'tickers': len(post_tickers),
+                'time': post_end_time - post_start_time
+            })
+            
             numberOfCommentsFounds += len(comments)
             total_ticker_mentions += len(post_tickers)
             processed_posts += 1
-            
-            # Send progress update for each post
-            post_msg = (
-                f"📊 Post {processed_posts}/{len(unique_post_ids)} in r/{subreddit_name}:\n"
-                f"• Title: {submission.title[:50]}...\n"
-                f"• Comments with tickers: {len(comments)}\n"
-                f"• Unique tickers found: {len(post_tickers)}\n"
-                f"• Processing time: {post_end_time - post_start_time:.2f}s"
-            )
-            send_slack_message(post_msg)
         
         # Update last_scraped_at timestamp for this subreddit
         try:
@@ -258,11 +256,18 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
             logger.error(f"Failed to update last_scraped_at for subreddit {subreddit_name}: {e}")
         
         # Send summary for this subreddit
+        top_posts = sorted(post_details, key=lambda x: x['comments'], reverse=True)[:3]
+        top_posts_str = "\n".join([
+            f"• {i+1}. \"{p['title']}\" - {p['comments']} comments, {p['tickers']} tickers"
+            for i, p in enumerate(top_posts)
+        ])
+        
         summary_msg = (
             f"✅ Completed r/{subreddit_name}:\n"
             f"• Total posts processed: {processed_posts}\n"
             f"• Total comments with tickers: {numberOfCommentsFounds}\n"
-            f"• Total unique ticker mentions: {total_ticker_mentions}"
+            f"• Total unique ticker mentions: {total_ticker_mentions}\n"
+            f"\nTop posts by comment count:\n{top_posts_str if top_posts else '• None'}"
         )
         send_slack_message(summary_msg)
         
@@ -301,7 +306,7 @@ async def main():
             subreddits = [{"id": 0, "name": "wallstreetbets"}]
         
         logger.info(f"Found {len(subreddits)} subreddits to process")
-        send_slack_message(f"🌐 Found {len(subreddits)} subreddits to process")
+        send_slack_message(f"🌐 Processing {len(subreddits)} subreddits: {', '.join(['r/' + s.get('name', 'unknown') for s in subreddits])}")
         
         # Process each subreddit
         total_comments = 0
@@ -313,7 +318,6 @@ async def main():
                 continue
                 
             try:
-                send_slack_message(f"⏱️ Processing subreddit {idx+1}/{len(subreddits)}: r/{subreddit['name']}")
                 num_comments = await process_subreddit(reddit, subreddit)
                 total_comments += num_comments
                 processed_subreddits.append(subreddit["name"])
@@ -330,7 +334,7 @@ async def main():
             subreddits_str = ", ".join(f"r/{s}" for s in processed_subreddits)
             success_msg = (
                 f"✅ Reddit Script Complete!\n"
-                f"• Total time: {total_time:.2f} seconds\n"
+                f"• Runtime: {total_time:.2f} seconds\n"
                 f"• Total comments processed: {total_comments}\n"
                 f"• Processed subreddits: {subreddits_str}"
             )

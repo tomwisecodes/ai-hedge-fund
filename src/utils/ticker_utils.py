@@ -62,13 +62,13 @@ def get_company_name(ticker: str) -> str:
 def is_likely_ticker(ticker: str) -> bool:
     """Filter out common false positives while allowing legitimate tickers"""
     # Legitimate single-letter tickers (major companies)
-    valid_single_letters = {'A', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 
+    valid_single_letters = {'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 
                            'O', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
     
     # Common words, acronyms, and abbreviations that get mistaken for tickers
     common_words = {
         # Original common words
-        'I', 'AM', 'BE', 'DO', 'GO', 'IN', 'IS', 'IT', 'ME', 'MY', 
+        'A', 'I', 'AM', 'BE', 'DO', 'GO', 'IN', 'IS', 'IT', 'ME', 'MY', 
         'NO', 'OF', 'ON', 'OR', 'PM', 'SO', 'TO', 'UP', 'US', 'WE',
         
         # Common English words
