@@ -69,31 +69,9 @@ async def get_comments(
         if comment['tickers']
     ]
 
-    # # Make an Set of unique tickers
-    # unique_tickers = set()
-    non_unique_tickers = []
-    for comment in comments_with_tickers:
-        non_unique_tickers.extend(comment['tickers'])
-        # unique_tickers.update(comment['tickers'])
+    logger.info(f"Found {len(comments_with_tickers)} comments with tickers")
 
-    logger.info(f"Found {len(non_unique_tickers)} non unique tickers")
-
-
-    # Write the unique tickers to the db
-    
-
-    for ticker in list(non_unique_tickers):
-        
-        try:
-            company_name = get_company_name(ticker)
-            logger.info(f"Storing stock record for {ticker} - {company_name}")
-            store_stock_record(supabase, ticker, company_name)
-        except Exception as e:
-            logger.error(f"Error processing ticker£: {e}")
-    logger.info(f"Stored {len(non_unique_tickers)} non unique tickers")
-
-    # Write the comments to the db 
-
+    # Store comments in the database first to ensure they exist
     for comment in comments_with_tickers:    
         try:
             data = {
@@ -105,12 +83,22 @@ async def get_comments(
             }
             supabase.table('reddit_comments').upsert(data).execute()      
         except Exception as e:
-            logger.error(f"Error processing comment: {e}")
+            logger.error(f"Error storing comment: {e}")
 
-    logger.info(f"Stored {len(comments_with_tickers)} comments")
+    # Now process tickers with comment_id references
+    for comment in comments_with_tickers:
+        comment_id = comment['id']
+        for ticker in comment['tickers']:
+            try:
+                company_name = get_company_name(ticker)
+                logger.info(f"Storing stock record for {ticker} - {company_name} from comment {comment_id}")
+                store_stock_record(supabase, ticker, company_name, comment_id)
+            except Exception as e:
+                logger.error(f"Error processing ticker: {e}")
+
+    logger.info(f"Stored {len(comments_with_tickers)} comments with their associated tickers")
 
     end_time = time.time()
-    logger.info(f"Found {len(comments_with_tickers)} comments with tickers")
     logger.info(f"Finished processing comments in {end_time - start_time:.2f} seconds")
     
     return comments_with_tickers

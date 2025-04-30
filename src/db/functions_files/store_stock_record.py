@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta
 import logging
 
@@ -6,13 +5,13 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def store_stock_record(supabase, ticker, name):
+def store_stock_record(supabase, ticker, name, comment_id=None):
     """Store a stock in the database and update its mention metrics"""
     if not isinstance(ticker, str) or not isinstance(name, str):
         logger.error(f"Invalid ticker or name: {ticker}, {name}")
         return
     now = datetime.now()
-    seven_days_ago = (now - timedelta(days=7)).isoformat()
+    # seven_days_ago = (now - timedelta(days=7)).isoformat()
     print(ticker, name)    
     try:
         existing = supabase.table('stocks')\
@@ -44,6 +43,11 @@ def store_stock_record(supabase, ticker, name):
             'ticker': ticker,
             'mentioned_at': now.isoformat()
         }
+        
+        # Add comment_id if provided
+        if comment_id:
+            mention_record['comment_id'] = comment_id
+            
         supabase.table('stock_mentions').insert(mention_record).execute()
         
         

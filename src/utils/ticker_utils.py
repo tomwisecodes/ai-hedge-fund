@@ -1,4 +1,3 @@
-
 import json
 import logging
 import requests
@@ -61,12 +60,44 @@ def get_company_name(ticker: str) -> str:
     return "Unknown"
     
 def is_likely_ticker(ticker: str) -> bool:
-    """Filter out common false positives"""
+    """Filter out common false positives while allowing legitimate tickers"""
+    # Legitimate single-letter tickers (major companies)
+    valid_single_letters = {'A', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 
+                           'O', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
+    
+    # Common words, acronyms, and abbreviations that get mistaken for tickers
     common_words = {
-        'A', 'I', 'AM', 'BE', 'DO', 'GO', 'IN', 'IS', 'IT', 'ME', 'MY', 
-        'NO', 'OF', 'ON', 'OR', 'PM', 'SO', 'TO', 'UP', 'US', 'WE'
+        # Original common words
+        'I', 'AM', 'BE', 'DO', 'GO', 'IN', 'IS', 'IT', 'ME', 'MY', 
+        'NO', 'OF', 'ON', 'OR', 'PM', 'SO', 'TO', 'UP', 'US', 'WE',
+        
+        # Common English words
+        'ALL', 'AN', 'ANY', 'ARE', 'AS', 'AT', 'BY', 'CAN', 'DAY', 'FOR', 
+        'HAS', 'HE', 'LOT', 'NOW', 'OPEN', 'REAL', 'SAY', 'WAY',
+        
+        # Internet/chat abbreviations and slang
+        'IMO', 'WTF', 'EOD', 'API', 'DTE', 'DD',
+        
+        # Countries and regions
+        'USA', 'EU', 'UK',
+        
+        # Finance/trading terms
+        'IRS', 'RSI', 'IP', 'VC', 'HR', 'VS', 'TFSA',
+        
+        # Two letter combinations commonly mistaken
+        'CC', 'TV', 'WH', 'WM',
     }
-    return ticker not in common_words
+
+        
+    # Check if it's a valid single letter ticker
+    if len(ticker) == 1:
+        return ticker in valid_single_letters
+        
+    # Filter out common words
+    if ticker in common_words:
+        return False
+        
+    return True
 
 def find_tickers(text: str, ticker_set: Set[str]) -> List[str]:
     """
