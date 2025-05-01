@@ -42,7 +42,7 @@ class DiscussionPost(TypedDict):
     created_at: float
     title: str
 
-def store_daily_discussion(supabase, post_id, title, subreddit_id):
+def store_post_id(supabase, post_id, title, subreddit_id):
     """Store a reddit post with its associated subreddit_id"""
     try:
         record = {
@@ -72,7 +72,7 @@ async def get_daily_discussion(reddit: asyncpraw.Reddit, subreddit_name: str, su
 
         if daily_discussion_id:
             # Write the daily discussion ID to the database
-            store_daily_discussion(supabase, daily_discussion_id, sticky.link_flair_text, subreddit_id)
+            store_post_id(supabase, daily_discussion_id, sticky.link_flair_text, subreddit_id)
             return daily_discussion_id
         else:
             # If the daily discussion is not stickied, get the 50 newest posts
@@ -90,7 +90,7 @@ async def get_daily_discussion(reddit: asyncpraw.Reddit, subreddit_name: str, su
                 return 'No daily discussion found'
 
             # Write the daily discussion ID to the database
-            store_daily_discussion(supabase, daily_discussion.id, daily_discussion.title, subreddit_id)
+            store_post_id(supabase, daily_discussion.id, daily_discussion.title, subreddit_id)
             
             return daily_discussion.id
 
@@ -183,11 +183,14 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
         logger.info(f"Getting daily discussion for {subreddit_name}...")
         discussion_id = await get_daily_discussion(reddit, subreddit_name, subreddit_id)
         
+        
         # Get pinned posts
         pinned_post_ids = await get_pinned_posts(reddit, subreddit_name)
         
+        
         # Get the last 20 posts
         last_20_discussion_ids = await get_last_20_discussion_ids(reddit, subreddit_name)
+        
         
         # Combine all IDs, prioritizing pinned posts and daily discussion
         all_post_ids = []
@@ -222,14 +225,16 @@ async def process_subreddit(reddit: asyncpraw.Reddit, subreddit_data) -> int:
         for post_id in unique_post_ids:
             if post_id == 'No daily discussion found': 
                 continue
-                
+            
             # Store post in database
             submission = await reddit.submission(id=post_id)
-            store_daily_discussion(supabase, post_id, submission.title, subreddit_id)
+            store_post_id(supabase, post_id, submission.title, subreddit_id)
             
             # Get and process comments
             post_start_time = time.time()
             comments = await get_comments(post_id, reddit)
+            
+            
             post_end_time = time.time()
             
             # Count unique tickers in this post
@@ -297,7 +302,10 @@ async def main():
         # Get subreddits from database
         logger.info("Fetching subreddits from database...")
         response = supabase.table("subreddits").select("*").execute()
-        subreddits = response.data
+        subreddits = response.data[:1]
+
+        print(subreddits, "***************")
+        
         
         if not subreddits:
             # Fallback to wallstreetbets if no subreddits in database
@@ -305,6 +313,8 @@ async def main():
             send_slack_message("⚠️ No subreddits found in database, using wallstreetbets as fallback")
             subreddits = [{"id": 0, "name": "wallstreetbets"}]
         
+        
+
         logger.info(f"Found {len(subreddits)} subreddits to process")
         send_slack_message(f"🌐 Processing {len(subreddits)} subreddits: {', '.join(['r/' + s.get('name', 'unknown') for s in subreddits])}")
         

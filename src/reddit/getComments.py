@@ -40,7 +40,7 @@ async def get_comments(
     logger.info(f"Starting to get comments for post {post_id}")
     start_time = time.time()
     
-    comments = await grab_set_number_of_comments(
+    comments = await grab_all_comments(
         post_id,
         reddit,
         existing_comment_ids
@@ -108,7 +108,7 @@ def convert_utc_to_date_and_time(utc: float) -> str:
     date = datetime.fromtimestamp(utc)
     return date.strftime('%Y-%m-%d %H:%M:%S')
 
-async def grab_set_number_of_comments(
+async def grab_all_comments(
     post_id: str,
     reddit: asyncpraw.Reddit,
     existing_comment_ids: List[str]
@@ -120,14 +120,12 @@ async def grab_set_number_of_comments(
     logger.info(f"Total comments: {submission.num_comments}")
     
     # Set a reasonable limit for comment fetching
-    logger.info("Starting to replace MoreComments objects...")
-    try:
-        # Replace more MoreComments objects to get deeper comment threads
-        # Increase limit to 20 to get more comments, with a threshold of 2 to get less popular comments
-        await submission.comments.replace_more(limit=20, threshold=2)
-        logger.info("Finished replacing MoreComments")
-    except Exception as e:
-        logger.error(f"Error replacing MoreComments: {e}")
+    # logger.info("Starting to replace MoreComments objects...")
+    # try:
+    #     await submission.comments.replace_more(limit=20, threshold=2)
+    #     logger.info("Finished replacing MoreComments")
+    # except Exception as e:
+    #     logger.error(f"Error replacing MoreComments: {e}")
     
     # Get all comments recursively
     logger.info("Getting comments recursively...")
@@ -144,6 +142,7 @@ async def grab_set_number_of_comments(
         
         # Start collection from top-level comments
         collect_comments_recursively(submission.comments)
+        
         
         if all_comments:
             first_comment = all_comments[0].body
