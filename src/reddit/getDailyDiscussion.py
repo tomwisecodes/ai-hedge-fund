@@ -302,7 +302,7 @@ async def main():
         # Get subreddits from database
         logger.info("Fetching subreddits from database...")
         response = supabase.table("subreddits").select("*").execute()
-        subreddits = response.data[:1]
+        subreddits = response.data
 
         print(subreddits, "***************")
         
