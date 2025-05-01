@@ -72,7 +72,7 @@ def is_likely_ticker(ticker: str) -> bool:
         
         # Common English words
         'ALL', 'AN', 'ANY', 'ARE', 'AS', 'AT', 'BY', 'CAN', 'DAY', 'FOR', 
-        'HAS', 'HE', 'LOT', 'NOW', 'OPEN', 'REAL', 'SAY', 'WAY', 'EDIT', 'OP'
+        'HAS', 'HE', 'LOT', 'NOW', 'OPEN', 'REAL', 'SAY', 'WAY', 'EDIT', 'OP', "AI",
         
         # Internet/chat abbreviations and slang
         'IMO', 'WTF', 'EOD', 'API', 'DTE', 'DD',

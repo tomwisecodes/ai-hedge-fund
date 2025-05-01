@@ -303,8 +303,6 @@ async def main():
         logger.info("Fetching subreddits from database...")
         response = supabase.table("subreddits").select("*").execute()
         subreddits = response.data
-
-        print(subreddits, "***************")
         
         
         if not subreddits:
